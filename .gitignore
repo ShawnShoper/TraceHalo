@@ -1,0 +1,50 @@
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Swift Package Manager
+.build/
+.swiftpm/
+
+# Xcode
+DerivedData/
+*.xcuserstate
+*.xcarchive
+*.xcodeproj/xcuserdata/
+*.xcworkspace/xcuserdata/
+
+# Local editors and tools
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# Logs and crash reports
+*.log
+*.crash
+*.ips
+
+# Local environment and signing material
+.env
+.env.*
+!.env.example
+*.p12
+*.cer
+*.certSigningRequest
+*.mobileprovision
+*.provisionprofile
+*.key
+*.pem
+
+# Packaged application artifacts
+*.app/
+*.dmg
+*.pkg
+
+# Local UI review output
+design-qa-artifacts/
+
+# Accidental top-level compiler output
+/main
