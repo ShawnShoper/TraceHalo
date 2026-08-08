@@ -20,7 +20,7 @@
 </p>
 
 > [!IMPORTANT]
-> TraceHalo is currently a Beta. The first public version is **v000.000.001**. Current `arm64` downloads run on Apple silicon Macs. Because the early Beta is not yet notarized by Apple, macOS may ask you to confirm the first launch.
+> TraceHalo is currently a Beta. The first public version is **Beta v0.0.1**. Current `arm64` downloads run on Apple silicon Macs. Because the early Beta is not yet notarized by Apple, macOS may ask you to confirm the first launch.
 
 ## Your Mac, at a glance
 

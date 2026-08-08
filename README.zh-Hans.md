@@ -20,7 +20,7 @@
 </p>
 
 > [!IMPORTANT]
-> TraceHalo 目前处于 Beta 阶段，首个公开版本为 **v000.000.001**。当前 `arm64` 安装包仅支持 Apple 芯片 Mac。由于早期 Beta 尚未完成 Apple 公证，macOS 第一次启动时可能要求手动确认。
+> TraceHalo 目前处于 Beta 阶段，首个公开版本为 **Beta v0.0.1**。当前 `arm64` 安装包仅支持 Apple 芯片 Mac。由于早期 Beta 尚未完成 Apple 公证，macOS 第一次启动时可能要求手动确认。
 
 ## 一眼看懂你的 Mac
 
