@@ -126,8 +126,8 @@ TRACEHALO_TARGET_ARCH="${TARGET_ARCH}" \
 
 cp "${INSTALL_GUIDE}" "${PAYLOAD_ROOT}/安装说明.md"
 
-MAIN_EXECUTABLE="${APP_PATH}/Contents/MacOS/SystemScope"
-SENSOR_HELPER="${APP_PATH}/Contents/Resources/SystemScopeSensorHelper"
+MAIN_EXECUTABLE="${APP_PATH}/Contents/MacOS/TraceHalo"
+SENSOR_HELPER="${APP_PATH}/Contents/Resources/TraceHaloSensorHelper"
 
 for executable in "${MAIN_EXECUTABLE}" "${SENSOR_HELPER}"; do
     ARCHITECTURES="$(lipo -archs "${executable}")"

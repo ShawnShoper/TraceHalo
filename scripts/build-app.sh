@@ -52,14 +52,14 @@ if [[ "${UNIVERSAL_BUILD}" == "1" ]]; then
     X86_64_BIN_PATH="$(build_for_triple \
         x86_64-apple-macosx14.0 \
         "${STAGING_ROOT}/release-x86_64")"
-    APP_RESOURCE_BUNDLE_PATH="${ARM64_BIN_PATH}/SystemScope_SystemScopeApp.bundle"
-    CORE_RESOURCE_BUNDLE_PATH="${ARM64_BIN_PATH}/SystemScope_SystemScopeCore.bundle"
+    APP_RESOURCE_BUNDLE_PATH="${ARM64_BIN_PATH}/TraceHalo_TraceHaloApp.bundle"
+    CORE_RESOURCE_BUNDLE_PATH="${ARM64_BIN_PATH}/TraceHalo_TraceHaloCore.bundle"
 elif [[ "${TARGET_ARCH}" == "arm64" ]]; then
     BIN_PATH="$(build_for_triple \
         arm64-apple-macosx14.0 \
         "${STAGING_ROOT}/release-arm64")"
-    APP_RESOURCE_BUNDLE_PATH="${BIN_PATH}/SystemScope_SystemScopeApp.bundle"
-    CORE_RESOURCE_BUNDLE_PATH="${BIN_PATH}/SystemScope_SystemScopeCore.bundle"
+    APP_RESOURCE_BUNDLE_PATH="${BIN_PATH}/TraceHalo_TraceHaloApp.bundle"
+    CORE_RESOURCE_BUNDLE_PATH="${BIN_PATH}/TraceHalo_TraceHaloCore.bundle"
 elif [[ "${TARGET_ARCH}" == "native" ]]; then
     NATIVE_BUILD_ARGUMENTS=(
         "${SWIFT_BUILD_ARGUMENTS[@]}"
@@ -67,8 +67,8 @@ elif [[ "${TARGET_ARCH}" == "native" ]]; then
     )
     swift build "${NATIVE_BUILD_ARGUMENTS[@]}"
     BIN_PATH="$(swift build "${NATIVE_BUILD_ARGUMENTS[@]}" --show-bin-path)"
-    APP_RESOURCE_BUNDLE_PATH="${BIN_PATH}/SystemScope_SystemScopeApp.bundle"
-    CORE_RESOURCE_BUNDLE_PATH="${BIN_PATH}/SystemScope_SystemScopeCore.bundle"
+    APP_RESOURCE_BUNDLE_PATH="${BIN_PATH}/TraceHalo_TraceHaloApp.bundle"
+    CORE_RESOURCE_BUNDLE_PATH="${BIN_PATH}/TraceHalo_TraceHaloCore.bundle"
 else
     print -u2 "Unsupported TRACEHALO_TARGET_ARCH: ${TARGET_ARCH}"
     print -u2 "Supported values are native and arm64."
@@ -110,28 +110,28 @@ swift "${PACKAGE_DIR}/scripts/make-icns.swift" \
 
 if [[ "${UNIVERSAL_BUILD}" == "1" ]]; then
     lipo -create \
-        "${ARM64_BIN_PATH}/SystemScope" \
-        "${X86_64_BIN_PATH}/SystemScope" \
-        -output "${STAGED_APP_PATH}/Contents/MacOS/SystemScope"
+        "${ARM64_BIN_PATH}/TraceHalo" \
+        "${X86_64_BIN_PATH}/TraceHalo" \
+        -output "${STAGED_APP_PATH}/Contents/MacOS/TraceHalo"
     lipo -create \
-        "${ARM64_BIN_PATH}/SystemScopeSensorHelper" \
-        "${X86_64_BIN_PATH}/SystemScopeSensorHelper" \
-        -output "${STAGED_APP_PATH}/Contents/Resources/SystemScopeSensorHelper"
+        "${ARM64_BIN_PATH}/TraceHaloSensorHelper" \
+        "${X86_64_BIN_PATH}/TraceHaloSensorHelper" \
+        -output "${STAGED_APP_PATH}/Contents/Resources/TraceHaloSensorHelper"
 else
-    cp "${BIN_PATH}/SystemScope" "${STAGED_APP_PATH}/Contents/MacOS/SystemScope"
-    cp "${BIN_PATH}/SystemScopeSensorHelper" \
-        "${STAGED_APP_PATH}/Contents/Resources/SystemScopeSensorHelper"
+    cp "${BIN_PATH}/TraceHalo" "${STAGED_APP_PATH}/Contents/MacOS/TraceHalo"
+    cp "${BIN_PATH}/TraceHaloSensorHelper" \
+        "${STAGED_APP_PATH}/Contents/Resources/TraceHaloSensorHelper"
 fi
 if [[ -d "${APP_RESOURCE_BUNDLE_PATH}" ]]; then
     ditto "${APP_RESOURCE_BUNDLE_PATH}" \
-        "${STAGED_APP_PATH}/Contents/Resources/SystemScope_SystemScopeApp.bundle"
+        "${STAGED_APP_PATH}/Contents/Resources/TraceHalo_TraceHaloApp.bundle"
 fi
 if [[ ! -d "${CORE_RESOURCE_BUNDLE_PATH}" ]]; then
-    print -u2 "Missing SystemScopeCore localization bundle: ${CORE_RESOURCE_BUNDLE_PATH}"
+    print -u2 "Missing TraceHaloCore localization bundle: ${CORE_RESOURCE_BUNDLE_PATH}"
     exit 1
 fi
 ditto "${CORE_RESOURCE_BUNDLE_PATH}" \
-    "${STAGED_APP_PATH}/Contents/Resources/SystemScope_SystemScopeCore.bundle"
+    "${STAGED_APP_PATH}/Contents/Resources/TraceHalo_TraceHaloCore.bundle"
 for localization in en zh-Hans; do
     resource_localization="${localization}"
     if [[ "${localization}" == "zh-Hans" ]]; then
@@ -148,7 +148,7 @@ done
 cp "${PACKAGE_DIR}/Resources/${SENSOR_HELPER_PLIST_NAME}" \
     "${STAGED_APP_PATH}/Contents/Library/LaunchDaemons/${SENSOR_HELPER_PLIST_NAME}"
 cp "${PACKAGE_DIR}/Resources/Info.plist" "${STAGED_APP_PATH}/Contents/Info.plist"
-chmod 755 "${STAGED_APP_PATH}/Contents/Resources/SystemScopeSensorHelper"
+chmod 755 "${STAGED_APP_PATH}/Contents/Resources/TraceHaloSensorHelper"
 plutil -lint \
     "${STAGED_APP_PATH}/Contents/Library/LaunchDaemons/${SENSOR_HELPER_PLIST_NAME}" \
     >/dev/null
@@ -158,7 +158,7 @@ if [[ "${SIGNING_IDENTITY}" == "-" ]]; then
         --sign - \
         --timestamp=none \
         --identifier com.tseai.tracehalo.sensor-helper \
-        "${STAGED_APP_PATH}/Contents/Resources/SystemScopeSensorHelper"
+        "${STAGED_APP_PATH}/Contents/Resources/TraceHaloSensorHelper"
     codesign --force --sign - --timestamp=none "${STAGED_APP_PATH}"
 else
     codesign --force \
@@ -166,7 +166,7 @@ else
         --options runtime \
         --timestamp \
         --identifier com.tseai.tracehalo.sensor-helper \
-        "${STAGED_APP_PATH}/Contents/Resources/SystemScopeSensorHelper"
+        "${STAGED_APP_PATH}/Contents/Resources/TraceHaloSensorHelper"
     codesign --force \
         --sign "${SIGNING_IDENTITY}" \
         --options runtime \

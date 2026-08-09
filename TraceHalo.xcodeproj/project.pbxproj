@@ -1,0 +1,746 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 56;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		0768AA5E669E8BC85711402C /* LegacyPreferencesMigration.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6836782C39D50BA8BAA607FE /* LegacyPreferencesMigration.swift */; };
+		0841B250A7435118B6C321AA /* DashboardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 60970E2EC1369EB8ACA5D618 /* DashboardView.swift */; };
+		0BFFF12C7B0A472AD1236AEC /* AppComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4D97C0AA67E73E4A30C0FCBE /* AppComponents.swift */; };
+		1663557B35CF072E802AFA5E /* InputDeviceReader.swift in Sources */ = {isa = PBXBuildFile; fileRef = 822A120DEAB0620EC8A4B904 /* InputDeviceReader.swift */; };
+		17F2B62C8F70498FFF0EC041 /* com.tseai.tracehalo.sensor-helper.plist in Copy LaunchDaemon Configuration */ = {isa = PBXBuildFile; fileRef = 7F718BE2F7525544D8C7D76E /* com.tseai.tracehalo.sensor-helper.plist */; };
+		1803528B83F3CE0DCD6E3BBB /* GPUStatisticsReader.swift in Sources */ = {isa = PBXBuildFile; fileRef = A47DF782E823256D12B34803 /* GPUStatisticsReader.swift */; };
+		1AC38480F8976D0222834E10 /* SystemDeviceArtworkResolver.swift in Sources */ = {isa = PBXBuildFile; fileRef = 544F78EE6AEF7EA2BE89CCAA /* SystemDeviceArtworkResolver.swift */; };
+		225048424CDAA76D33870DDB /* MenuBarStatusLayout.swift in Sources */ = {isa = PBXBuildFile; fileRef = B6A469BE664B618D488EB1A3 /* MenuBarStatusLayout.swift */; };
+		2342B978E8C94904FED4560E /* BatteryTelemetryParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = 91CDB1186EC1D6E4A2395DB4 /* BatteryTelemetryParser.swift */; };
+		2839BB5A25F29F993550CED7 /* AppModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6A3B85C66D97BF394515ED77 /* AppModel.swift */; };
+		28BE8B8BD26C36237D7713F9 /* libTraceHaloCore.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 546DAEF196C9D2193CCD342F /* libTraceHaloCore.a */; };
+		2B8891A6887E09A71D2ED9D5 /* HardwareViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = F377ADE9EDC226C7950A24B9 /* HardwareViews.swift */; };
+		2D5C08F18927D6D812952946 /* AppLanguage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 73EA7DCD1387A0F834BAB13C /* AppLanguage.swift */; };
+		2E8355F9C10DB78A3A865364 /* LaunchAtLoginController.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0D359454BF44F2A96FA4226 /* LaunchAtLoginController.swift */; };
+		3D881888EF37849C7BA42612 /* AppLocalizationFormatting.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3424087AE269677CC8D26BD0 /* AppLocalizationFormatting.swift */; };
+		4B3B7AE23A19EB3CE12710B6 /* libTraceHaloCore.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 546DAEF196C9D2193CCD342F /* libTraceHaloCore.a */; };
+		4F42ADE17D36A988457AAF14 /* MenuBarDashboardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6CC6F0E5E9583F28D0282B96 /* MenuBarDashboardView.swift */; };
+		4FE93400DA27902A7149752A /* AppLanguage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7F8376A59D37C0CA36C97498 /* AppLanguage.swift */; };
+		5232B0C84610099D54337F7B /* CalmTheme.swift in Sources */ = {isa = PBXBuildFile; fileRef = 45A050AC37B3083DE66840C3 /* CalmTheme.swift */; };
+		564E8A4EE15275D17CBB04A7 /* StorageIOReader.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5ED29E7DB7EFBE7184DD4BC7 /* StorageIOReader.swift */; };
+		637A874578B8C0A7B80AB9F1 /* DisplayMetadataReader.swift in Sources */ = {isa = PBXBuildFile; fileRef = 87036C31746B1E875DBF881D /* DisplayMetadataReader.swift */; };
+		65547826EC21C09C136D904C /* StorageIOHistoryPolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3620871D5D67757CD464DA9E /* StorageIOHistoryPolicy.swift */; };
+		664DB3B976C1486BF5177EF9 /* Diagnostics.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2F3F24BC13A5BCCBEE863775 /* Diagnostics.swift */; };
+		6B4C3D945EF4509626D0E3AA /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = DAE95DDC98C81636F12C0C18 /* Assets.xcassets */; };
+		71269E2B4EA16E8921E86E47 /* ToolViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = FC4F1B70C697FF294ACF5CE7 /* ToolViews.swift */; };
+		72A8881872843080A9F1B7DC /* PreferencesPersistenceController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 65917C60D0A0A06049D7172E /* PreferencesPersistenceController.swift */; };
+		75E0EBB0A4CC12D5A4FD2F63 /* TraceHaloApplicationDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = C22E602678BC2575BB4531BB /* TraceHaloApplicationDelegate.swift */; };
+		76DF806F9286CFC8C2898D26 /* MenuBarStatusItemController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 19FFE3737CB264A80169E19C /* MenuBarStatusItemController.swift */; };
+		7EBABAF38EB8FA2AA18E9010 /* MonitorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3F8CF205C8D7FFCAC25C82AA /* MonitorView.swift */; };
+		922658B7B925BDE692D35692 /* StorageWorkspaceView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6DB190998EFE2E467EB93950 /* StorageWorkspaceView.swift */; };
+		98EE5E2C7EB6760CA3FE6244 /* RootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 228F099976214B2C8F91C786 /* RootView.swift */; };
+		99C387E011255AD5420BA2F3 /* UISnapshotCapture.swift in Sources */ = {isa = PBXBuildFile; fileRef = 75938A48C89284756821868B /* UISnapshotCapture.swift */; };
+		9C836ADD0E5E155E2F3B1460 /* NetworkServiceNaming.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4DE9A64F8AF04ABE64DCA57A /* NetworkServiceNaming.swift */; };
+		9E0BA611307B427D96FB55A3 /* Fixtures.swift in Sources */ = {isa = PBXBuildFile; fileRef = 705858949D962FDD6E24D1FB /* Fixtures.swift */; };
+		A40FE474F0F0E13F8AD69BAD /* MenuMonitorLocalization.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0CE52F8D3098F59F2331B101 /* MenuMonitorLocalization.swift */; };
+		AA9C9202E678CFD4CC621DAE /* SensorHelperBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0AFA4F181438F2B4064712D4 /* SensorHelperBridge.swift */; };
+		B872289AE610EA318C48B367 /* TraceHaloSensorHelper in Embed Sensor Helper */ = {isa = PBXBuildFile; fileRef = 4EABD40A9A4273E24A772E3A /* TraceHaloSensorHelper */; settings = {ATTRIBUTES = (CodeSignOnCopy, ); }; };
+		BA26759D13F4EC198B2B69CF /* GPUDeviceMetadataReader.swift in Sources */ = {isa = PBXBuildFile; fileRef = 76F794BDB38E8D3933FD55DF /* GPUDeviceMetadataReader.swift */; };
+		BB9A8626CD711D744F8CEFAE /* Formatting.swift in Sources */ = {isa = PBXBuildFile; fileRef = E6D97EE4EF86A954C413F8D4 /* Formatting.swift */; };
+		C2E2AA9D27312B914D15094F /* LiveServices.swift in Sources */ = {isa = PBXBuildFile; fileRef = AE02CA7C9E6B07B11E12785F /* LiveServices.swift */; };
+		CDB5E47D152BF6E72EC70E69 /* SMCSensorReader.swift in Sources */ = {isa = PBXBuildFile; fileRef = 70E7F07429E1D2C7FF43A665 /* SMCSensorReader.swift */; };
+		D363260A065AC90F04F25E35 /* FeatureModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 11C4968F28DF922F78454999 /* FeatureModels.swift */; };
+		D39EB80BF8CD812387F23631 /* TraceHaloApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = EBAC7D40DE2DE38337E5F45D /* TraceHaloApp.swift */; };
+		D679CAF6FCD43128FD22EF52 /* ScanningServices.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0C6BF8BA18A12048F240D310 /* ScanningServices.swift */; };
+		D7AD900369853E3D7A108163 /* AppNavigationRouter.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1074D262DC7DE1D264797BB /* AppNavigationRouter.swift */; };
+		DCE6909DD8D8235EF5EEA6B2 /* Localizable.strings in Resources */ = {isa = PBXBuildFile; fileRef = 529396A8CA2E169A6A2C4484 /* Localizable.strings */; };
+		E98BCA7680CAC1243D1DDE3A /* SystemModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6A07E3D5A4482244CF159568 /* SystemModels.swift */; };
+		ECAFC7B1FFA883410EC8AF07 /* SensorHelperMain.swift in Sources */ = {isa = PBXBuildFile; fileRef = 78E560699F6D54A100BB30A7 /* SensorHelperMain.swift */; };
+		ED3D5C7B59FFE4A9BB840557 /* Safety.swift in Sources */ = {isa = PBXBuildFile; fileRef = 77A6EB48C784B8096D699CF7 /* Safety.swift */; };
+		EF6D8A6DFE76273CF6D20AB2 /* ReportPDFExporter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 060F0D591FB97C9CAA9238F0 /* ReportPDFExporter.swift */; };
+		F3B892CA1AADE36C51830994 /* SensorHelperClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 625208FE3435FACCEBD82716 /* SensorHelperClient.swift */; };
+		F6116CF03D05BD26A73A85F8 /* ReportSettingsViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 864F6E696450A48691951042 /* ReportSettingsViews.swift */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		028D271CD5AF56744CA9BB94 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = AC167F3E17FAE47E6F7F8244 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 40DC65E13E04E526EC80FF54;
+			remoteInfo = TraceHaloSensorHelper;
+		};
+		6BBF40A14B3141C4F23B6B22 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = AC167F3E17FAE47E6F7F8244 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 2BBCA66E3BB64165D3AFB263;
+			remoteInfo = TraceHaloCore;
+		};
+		B4AC4369548F38BB4B084B55 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = AC167F3E17FAE47E6F7F8244 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 2BBCA66E3BB64165D3AFB263;
+			remoteInfo = TraceHaloCore;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+		08F745EB940A6D4A05DE710E /* Copy LaunchDaemon Configuration */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = Contents/Library/LaunchDaemons;
+			dstSubfolderSpec = 1;
+			files = (
+				17F2B62C8F70498FFF0EC041 /* com.tseai.tracehalo.sensor-helper.plist in Copy LaunchDaemon Configuration */,
+			);
+			name = "Copy LaunchDaemon Configuration";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		E389A2DA22B0C582F32BE534 /* Embed Sensor Helper */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 7;
+			files = (
+				B872289AE610EA318C48B367 /* TraceHaloSensorHelper in Embed Sensor Helper */,
+			);
+			name = "Embed Sensor Helper";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
+
+/* Begin PBXFileReference section */
+		060F0D591FB97C9CAA9238F0 /* ReportPDFExporter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReportPDFExporter.swift; sourceTree = "<group>"; };
+		0A6DF58994C1264DCD78BB93 /* Package.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Package.swift; sourceTree = SOURCE_ROOT; };
+		0AFA4F181438F2B4064712D4 /* SensorHelperBridge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SensorHelperBridge.swift; sourceTree = "<group>"; };
+		0C6BF8BA18A12048F240D310 /* ScanningServices.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScanningServices.swift; sourceTree = "<group>"; };
+		0CE52F8D3098F59F2331B101 /* MenuMonitorLocalization.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuMonitorLocalization.swift; sourceTree = "<group>"; };
+		11C4968F28DF922F78454999 /* FeatureModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FeatureModels.swift; sourceTree = "<group>"; };
+		19FFE3737CB264A80169E19C /* MenuBarStatusItemController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuBarStatusItemController.swift; sourceTree = "<group>"; };
+		228F099976214B2C8F91C786 /* RootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RootView.swift; sourceTree = "<group>"; };
+		2F3F24BC13A5BCCBEE863775 /* Diagnostics.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Diagnostics.swift; sourceTree = "<group>"; };
+		3424087AE269677CC8D26BD0 /* AppLocalizationFormatting.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppLocalizationFormatting.swift; sourceTree = "<group>"; };
+		3620871D5D67757CD464DA9E /* StorageIOHistoryPolicy.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StorageIOHistoryPolicy.swift; sourceTree = "<group>"; };
+		3F8CF205C8D7FFCAC25C82AA /* MonitorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MonitorView.swift; sourceTree = "<group>"; };
+		40FFDDED2CB6F547E2F2104D /* TraceHalo.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = TraceHalo.entitlements; sourceTree = "<group>"; };
+		4291A0A958650AC18719722F /* CoreResources-Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = "CoreResources-Info.plist"; sourceTree = "<group>"; };
+		44612BE4EF7031AD9A3F3D3B /* TraceHalo.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = TraceHalo.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		45A050AC37B3083DE66840C3 /* CalmTheme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalmTheme.swift; sourceTree = "<group>"; };
+		4D97C0AA67E73E4A30C0FCBE /* AppComponents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppComponents.swift; sourceTree = "<group>"; };
+		4DE9A64F8AF04ABE64DCA57A /* NetworkServiceNaming.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NetworkServiceNaming.swift; sourceTree = "<group>"; };
+		4EABD40A9A4273E24A772E3A /* TraceHaloSensorHelper */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = TraceHaloSensorHelper; sourceTree = BUILT_PRODUCTS_DIR; };
+		544F78EE6AEF7EA2BE89CCAA /* SystemDeviceArtworkResolver.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SystemDeviceArtworkResolver.swift; sourceTree = "<group>"; };
+		546DAEF196C9D2193CCD342F /* libTraceHaloCore.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; includeInIndex = 0; path = libTraceHaloCore.a; sourceTree = BUILT_PRODUCTS_DIR; };
+		5ED29E7DB7EFBE7184DD4BC7 /* StorageIOReader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StorageIOReader.swift; sourceTree = "<group>"; };
+		60970E2EC1369EB8ACA5D618 /* DashboardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardView.swift; sourceTree = "<group>"; };
+		625208FE3435FACCEBD82716 /* SensorHelperClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SensorHelperClient.swift; sourceTree = "<group>"; };
+		65917C60D0A0A06049D7172E /* PreferencesPersistenceController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PreferencesPersistenceController.swift; sourceTree = "<group>"; };
+		6836782C39D50BA8BAA607FE /* LegacyPreferencesMigration.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LegacyPreferencesMigration.swift; sourceTree = "<group>"; };
+		6A07E3D5A4482244CF159568 /* SystemModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SystemModels.swift; sourceTree = "<group>"; };
+		6A3B85C66D97BF394515ED77 /* AppModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppModel.swift; sourceTree = "<group>"; };
+		6CC6F0E5E9583F28D0282B96 /* MenuBarDashboardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuBarDashboardView.swift; sourceTree = "<group>"; };
+		6DB190998EFE2E467EB93950 /* StorageWorkspaceView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StorageWorkspaceView.swift; sourceTree = "<group>"; };
+		705858949D962FDD6E24D1FB /* Fixtures.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Fixtures.swift; sourceTree = "<group>"; };
+		70E7F07429E1D2C7FF43A665 /* SMCSensorReader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SMCSensorReader.swift; sourceTree = "<group>"; };
+		73EA7DCD1387A0F834BAB13C /* AppLanguage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppLanguage.swift; sourceTree = "<group>"; };
+		75938A48C89284756821868B /* UISnapshotCapture.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UISnapshotCapture.swift; sourceTree = "<group>"; };
+		76F794BDB38E8D3933FD55DF /* GPUDeviceMetadataReader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GPUDeviceMetadataReader.swift; sourceTree = "<group>"; };
+		77A6EB48C784B8096D699CF7 /* Safety.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Safety.swift; sourceTree = "<group>"; };
+		78E560699F6D54A100BB30A7 /* SensorHelperMain.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SensorHelperMain.swift; sourceTree = "<group>"; };
+		7F718BE2F7525544D8C7D76E /* com.tseai.tracehalo.sensor-helper.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = "com.tseai.tracehalo.sensor-helper.plist"; sourceTree = "<group>"; };
+		7F8376A59D37C0CA36C97498 /* AppLanguage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppLanguage.swift; sourceTree = "<group>"; };
+		81732498A63C203E466D79EA /* zh-Hans */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = "zh-Hans"; path = "zh-Hans.lproj/Localizable.strings"; sourceTree = "<group>"; };
+		822A120DEAB0620EC8A4B904 /* InputDeviceReader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InputDeviceReader.swift; sourceTree = "<group>"; };
+		864F6E696450A48691951042 /* ReportSettingsViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReportSettingsViews.swift; sourceTree = "<group>"; };
+		87036C31746B1E875DBF881D /* DisplayMetadataReader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DisplayMetadataReader.swift; sourceTree = "<group>"; };
+		91CDB1186EC1D6E4A2395DB4 /* BatteryTelemetryParser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BatteryTelemetryParser.swift; sourceTree = "<group>"; };
+		A47DF782E823256D12B34803 /* GPUStatisticsReader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GPUStatisticsReader.swift; sourceTree = "<group>"; };
+		AE02CA7C9E6B07B11E12785F /* LiveServices.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiveServices.swift; sourceTree = "<group>"; };
+		B6A469BE664B618D488EB1A3 /* MenuBarStatusLayout.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuBarStatusLayout.swift; sourceTree = "<group>"; };
+		C22E602678BC2575BB4531BB /* TraceHaloApplicationDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TraceHaloApplicationDelegate.swift; sourceTree = "<group>"; };
+		C550C6405D78C4F38D9B6D9D /* en */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = en; path = en.lproj/Localizable.strings; sourceTree = "<group>"; };
+		C5CE5193ED90E813E85730A9 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		D0D359454BF44F2A96FA4226 /* LaunchAtLoginController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LaunchAtLoginController.swift; sourceTree = "<group>"; };
+		DAE95DDC98C81636F12C0C18 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		E6D97EE4EF86A954C413F8D4 /* Formatting.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Formatting.swift; sourceTree = "<group>"; };
+		EBAC7D40DE2DE38337E5F45D /* TraceHaloApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TraceHaloApp.swift; sourceTree = "<group>"; };
+		F1074D262DC7DE1D264797BB /* AppNavigationRouter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppNavigationRouter.swift; sourceTree = "<group>"; };
+		F377ADE9EDC226C7950A24B9 /* HardwareViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HardwareViews.swift; sourceTree = "<group>"; };
+		FC4F1B70C697FF294ACF5CE7 /* ToolViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ToolViews.swift; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		76D2E119670590B94C8D0A7F /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				4B3B7AE23A19EB3CE12710B6 /* libTraceHaloCore.a in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		DFA199CA0E9C338CDA9E2846 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		E50056DC944E3070A4C65070 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				28BE8B8BD26C36237D7713F9 /* libTraceHaloCore.a in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		37716422764497191408236F /* Sources/TraceHaloApp */ = {
+			isa = PBXGroup;
+			children = (
+				4D97C0AA67E73E4A30C0FCBE /* AppComponents.swift */,
+				73EA7DCD1387A0F834BAB13C /* AppLanguage.swift */,
+				3424087AE269677CC8D26BD0 /* AppLocalizationFormatting.swift */,
+				6A3B85C66D97BF394515ED77 /* AppModel.swift */,
+				F1074D262DC7DE1D264797BB /* AppNavigationRouter.swift */,
+				45A050AC37B3083DE66840C3 /* CalmTheme.swift */,
+				60970E2EC1369EB8ACA5D618 /* DashboardView.swift */,
+				F377ADE9EDC226C7950A24B9 /* HardwareViews.swift */,
+				D0D359454BF44F2A96FA4226 /* LaunchAtLoginController.swift */,
+				6836782C39D50BA8BAA607FE /* LegacyPreferencesMigration.swift */,
+				6CC6F0E5E9583F28D0282B96 /* MenuBarDashboardView.swift */,
+				19FFE3737CB264A80169E19C /* MenuBarStatusItemController.swift */,
+				B6A469BE664B618D488EB1A3 /* MenuBarStatusLayout.swift */,
+				0CE52F8D3098F59F2331B101 /* MenuMonitorLocalization.swift */,
+				3F8CF205C8D7FFCAC25C82AA /* MonitorView.swift */,
+				65917C60D0A0A06049D7172E /* PreferencesPersistenceController.swift */,
+				060F0D591FB97C9CAA9238F0 /* ReportPDFExporter.swift */,
+				864F6E696450A48691951042 /* ReportSettingsViews.swift */,
+				228F099976214B2C8F91C786 /* RootView.swift */,
+				625208FE3435FACCEBD82716 /* SensorHelperClient.swift */,
+				3620871D5D67757CD464DA9E /* StorageIOHistoryPolicy.swift */,
+				6DB190998EFE2E467EB93950 /* StorageWorkspaceView.swift */,
+				544F78EE6AEF7EA2BE89CCAA /* SystemDeviceArtworkResolver.swift */,
+				EBAC7D40DE2DE38337E5F45D /* TraceHaloApp.swift */,
+				FC4F1B70C697FF294ACF5CE7 /* ToolViews.swift */,
+				C22E602678BC2575BB4531BB /* TraceHaloApplicationDelegate.swift */,
+				75938A48C89284756821868B /* UISnapshotCapture.swift */,
+			);
+			path = Sources/TraceHaloApp;
+			sourceTree = SOURCE_ROOT;
+		};
+		55CC75EBD0A3E78F5415BF11 = {
+			isa = PBXGroup;
+			children = (
+				0A6DF58994C1264DCD78BB93 /* Package.swift */,
+				37716422764497191408236F /* Sources/TraceHaloApp */,
+				9C863E3A8F68AE552E7E5533 /* Sources/TraceHaloCore */,
+				E1B5A565BB687BC495D466C2 /* Sources/TraceHaloSensorHelper */,
+				C66251BF0301F2DA0A114182 /* Sources/TraceHaloApp/Resources */,
+				E938A398A3527637F1C04BE9 /* Resources */,
+				D76807AF6A0F2F576CDFC8F9 /* Xcode/TraceHalo */,
+				AFD8FBF72B79230A08686526 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		9C863E3A8F68AE552E7E5533 /* Sources/TraceHaloCore */ = {
+			isa = PBXGroup;
+			children = (
+				7F8376A59D37C0CA36C97498 /* AppLanguage.swift */,
+				91CDB1186EC1D6E4A2395DB4 /* BatteryTelemetryParser.swift */,
+				2F3F24BC13A5BCCBEE863775 /* Diagnostics.swift */,
+				87036C31746B1E875DBF881D /* DisplayMetadataReader.swift */,
+				11C4968F28DF922F78454999 /* FeatureModels.swift */,
+				705858949D962FDD6E24D1FB /* Fixtures.swift */,
+				E6D97EE4EF86A954C413F8D4 /* Formatting.swift */,
+				76F794BDB38E8D3933FD55DF /* GPUDeviceMetadataReader.swift */,
+				A47DF782E823256D12B34803 /* GPUStatisticsReader.swift */,
+				822A120DEAB0620EC8A4B904 /* InputDeviceReader.swift */,
+				AE02CA7C9E6B07B11E12785F /* LiveServices.swift */,
+				4DE9A64F8AF04ABE64DCA57A /* NetworkServiceNaming.swift */,
+				70E7F07429E1D2C7FF43A665 /* SMCSensorReader.swift */,
+				77A6EB48C784B8096D699CF7 /* Safety.swift */,
+				0C6BF8BA18A12048F240D310 /* ScanningServices.swift */,
+				0AFA4F181438F2B4064712D4 /* SensorHelperBridge.swift */,
+				5ED29E7DB7EFBE7184DD4BC7 /* StorageIOReader.swift */,
+				6A07E3D5A4482244CF159568 /* SystemModels.swift */,
+			);
+			path = Sources/TraceHaloCore;
+			sourceTree = SOURCE_ROOT;
+		};
+		AFD8FBF72B79230A08686526 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				44612BE4EF7031AD9A3F3D3B /* TraceHalo.app */,
+				546DAEF196C9D2193CCD342F /* libTraceHaloCore.a */,
+				4EABD40A9A4273E24A772E3A /* TraceHaloSensorHelper */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		C66251BF0301F2DA0A114182 /* Sources/TraceHaloApp/Resources */ = {
+			isa = PBXGroup;
+			children = (
+				529396A8CA2E169A6A2C4484 /* Localizable.strings */,
+			);
+			path = Sources/TraceHaloApp/Resources;
+			sourceTree = SOURCE_ROOT;
+		};
+		D76807AF6A0F2F576CDFC8F9 /* Xcode/TraceHalo */ = {
+			isa = PBXGroup;
+			children = (
+				DAE95DDC98C81636F12C0C18 /* Assets.xcassets */,
+				C5CE5193ED90E813E85730A9 /* Info.plist */,
+				40FFDDED2CB6F547E2F2104D /* TraceHalo.entitlements */,
+				4291A0A958650AC18719722F /* CoreResources-Info.plist */,
+			);
+			path = Xcode/TraceHalo;
+			sourceTree = SOURCE_ROOT;
+		};
+		E1B5A565BB687BC495D466C2 /* Sources/TraceHaloSensorHelper */ = {
+			isa = PBXGroup;
+			children = (
+				78E560699F6D54A100BB30A7 /* SensorHelperMain.swift */,
+			);
+			path = Sources/TraceHaloSensorHelper;
+			sourceTree = SOURCE_ROOT;
+		};
+		E938A398A3527637F1C04BE9 /* Resources */ = {
+			isa = PBXGroup;
+			children = (
+				7F718BE2F7525544D8C7D76E /* com.tseai.tracehalo.sensor-helper.plist */,
+			);
+			path = Resources;
+			sourceTree = SOURCE_ROOT;
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		02133EE1B14C6591B7132CB7 /* TraceHalo */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 06D3A86710AF6D466A45A3E2 /* Build configuration list for PBXNativeTarget "TraceHalo" */;
+			buildPhases = (
+				60926538E9DDDB89F14CA387 /* Sources */,
+				E50056DC944E3070A4C65070 /* Frameworks */,
+				3A830EE19039FFAACDDFE03C /* Resources */,
+				C6ED929B5BCB79D79A5FE3B1 /* Embed Core Localization Bundle */,
+				E389A2DA22B0C582F32BE534 /* Embed Sensor Helper */,
+				A46E7C7B54C04669B7C8894F /* Sign Sensor Helper with Stable Identifier */,
+				08F745EB940A6D4A05DE710E /* Copy LaunchDaemon Configuration */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				AB3E314CAE2C74CA0AD6B090 /* PBXTargetDependency */,
+				C4AA7ACD0FC546E182C0661F /* PBXTargetDependency */,
+			);
+			name = TraceHalo;
+			productName = TraceHalo;
+			productReference = 44612BE4EF7031AD9A3F3D3B /* TraceHalo.app */;
+			productType = "com.apple.product-type.application";
+		};
+		2BBCA66E3BB64165D3AFB263 /* TraceHaloCore */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = EAE061100B6CEFD858508B9E /* Build configuration list for PBXNativeTarget "TraceHaloCore" */;
+			buildPhases = (
+				F1C92AF379C61B9DEEDA9023 /* Sources */,
+				DFA199CA0E9C338CDA9E2846 /* Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = TraceHaloCore;
+			productName = TraceHaloCore;
+			productReference = 546DAEF196C9D2193CCD342F /* libTraceHaloCore.a */;
+			productType = "com.apple.product-type.library.static";
+		};
+		40DC65E13E04E526EC80FF54 /* TraceHaloSensorHelper */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = B8FCDB9A655A2B4763ADADC9 /* Build configuration list for PBXNativeTarget "TraceHaloSensorHelper" */;
+			buildPhases = (
+				870FCE12BDCA100A9C1FF092 /* Sources */,
+				76D2E119670590B94C8D0A7F /* Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				BE9500BDD6E4CF4B2B30EBBD /* PBXTargetDependency */,
+			);
+			name = TraceHaloSensorHelper;
+			productName = TraceHaloSensorHelper;
+			productReference = 4EABD40A9A4273E24A772E3A /* TraceHaloSensorHelper */;
+			productType = "com.apple.product-type.tool";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		AC167F3E17FAE47E6F7F8244 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = YES;
+				LastSwiftUpdateCheck = 2600;
+				LastUpgradeCheck = 2600;
+				TargetAttributes = {
+					02133EE1B14C6591B7132CB7 = {
+						CreatedOnToolsVersion = 26.0;
+					};
+					2BBCA66E3BB64165D3AFB263 = {
+						CreatedOnToolsVersion = 26.0;
+					};
+					40DC65E13E04E526EC80FF54 = {
+						CreatedOnToolsVersion = 26.0;
+					};
+				};
+			};
+			buildConfigurationList = 222F769777E4E490FB268D78 /* Build configuration list for PBXProject "TraceHalo" */;
+			compatibilityVersion = "Xcode 14.0";
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				en,
+				Base,
+				"zh-Hans",
+			);
+			mainGroup = 55CC75EBD0A3E78F5415BF11;
+			productRefGroup = AFD8FBF72B79230A08686526 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				02133EE1B14C6591B7132CB7 /* TraceHalo */,
+				2BBCA66E3BB64165D3AFB263 /* TraceHaloCore */,
+				40DC65E13E04E526EC80FF54 /* TraceHaloSensorHelper */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		3A830EE19039FFAACDDFE03C /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				6B4C3D945EF4509626D0E3AA /* Assets.xcassets in Resources */,
+				DCE6909DD8D8235EF5EEA6B2 /* Localizable.strings in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXShellScriptBuildPhase section */
+		A46E7C7B54C04669B7C8894F /* Sign Sensor Helper with Stable Identifier */ = {
+			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputPaths = (
+				"$(TARGET_BUILD_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/TraceHaloSensorHelper",
+			);
+			name = "Sign Sensor Helper with Stable Identifier";
+			outputPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/zsh;
+			shellScript = "set -euo pipefail\nif [[ \"${CODE_SIGNING_ALLOWED:-NO}\" != \"YES\" ]]; then\n    exit 0\nfi\nHELPER_PATH=\"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/TraceHaloSensorHelper\"\nif [[ ! -f \"${HELPER_PATH}\" ]]; then\n    echo \"error: Embedded sensor helper was not found at ${HELPER_PATH}\" >&2\n    exit 1\nfi\nSIGNING_IDENTITY=\"${EXPANDED_CODE_SIGN_IDENTITY:--}\"\nif [[ -z \"${SIGNING_IDENTITY}\" ]]; then\n    SIGNING_IDENTITY=\"-\"\nfi\nSIGNING_ARGUMENTS=(\n    --force\n    --sign \"${SIGNING_IDENTITY}\"\n    --identifier com.tseai.tracehalo.sensor-helper\n)\nif [[ \"${CODE_SIGN_IDENTITY:-}\" == *\"Developer ID Application\"* ]]; then\n    SIGNING_ARGUMENTS+=(--timestamp)\nelse\n    SIGNING_ARGUMENTS+=(--timestamp=none)\nfi\nif [[ \"${ENABLE_HARDENED_RUNTIME:-NO}\" == \"YES\" ]]; then\n    SIGNING_ARGUMENTS+=(--options runtime)\nfi\n/usr/bin/codesign \"${SIGNING_ARGUMENTS[@]}\" \"${HELPER_PATH}\"\n";
+		};
+		C6ED929B5BCB79D79A5FE3B1 /* Embed Core Localization Bundle */ = {
+			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputPaths = (
+				"$(SRCROOT)/Xcode/TraceHalo/CoreResources-Info.plist",
+				"$(SRCROOT)/Sources/TraceHaloCore/Resources/en.lproj/Localizable.strings",
+				"$(SRCROOT)/Sources/TraceHaloCore/Resources/zh-Hans.lproj/Localizable.strings",
+			);
+			name = "Embed Core Localization Bundle";
+			outputPaths = (
+				"$(TARGET_BUILD_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/TraceHalo_TraceHaloCore.bundle/Info.plist",
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/zsh;
+			shellScript = "set -euo pipefail\nCORE_BUNDLE=\"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/TraceHalo_TraceHaloCore.bundle\"\nmkdir -p \"${CORE_BUNDLE}/en.lproj\" \"${CORE_BUNDLE}/zh-hans.lproj\"\ncp \"${SRCROOT}/Xcode/TraceHalo/CoreResources-Info.plist\" \"${CORE_BUNDLE}/Info.plist\"\ncp \"${SRCROOT}/Sources/TraceHaloCore/Resources/en.lproj/Localizable.strings\" \"${CORE_BUNDLE}/en.lproj/Localizable.strings\"\ncp \"${SRCROOT}/Sources/TraceHaloCore/Resources/zh-Hans.lproj/Localizable.strings\" \"${CORE_BUNDLE}/zh-hans.lproj/Localizable.strings\"";
+		};
+/* End PBXShellScriptBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		60926538E9DDDB89F14CA387 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				0BFFF12C7B0A472AD1236AEC /* AppComponents.swift in Sources */,
+				2D5C08F18927D6D812952946 /* AppLanguage.swift in Sources */,
+				3D881888EF37849C7BA42612 /* AppLocalizationFormatting.swift in Sources */,
+				2839BB5A25F29F993550CED7 /* AppModel.swift in Sources */,
+				D7AD900369853E3D7A108163 /* AppNavigationRouter.swift in Sources */,
+				5232B0C84610099D54337F7B /* CalmTheme.swift in Sources */,
+				0841B250A7435118B6C321AA /* DashboardView.swift in Sources */,
+				2B8891A6887E09A71D2ED9D5 /* HardwareViews.swift in Sources */,
+				2E8355F9C10DB78A3A865364 /* LaunchAtLoginController.swift in Sources */,
+				0768AA5E669E8BC85711402C /* LegacyPreferencesMigration.swift in Sources */,
+				4F42ADE17D36A988457AAF14 /* MenuBarDashboardView.swift in Sources */,
+				76DF806F9286CFC8C2898D26 /* MenuBarStatusItemController.swift in Sources */,
+				225048424CDAA76D33870DDB /* MenuBarStatusLayout.swift in Sources */,
+				A40FE474F0F0E13F8AD69BAD /* MenuMonitorLocalization.swift in Sources */,
+				7EBABAF38EB8FA2AA18E9010 /* MonitorView.swift in Sources */,
+				72A8881872843080A9F1B7DC /* PreferencesPersistenceController.swift in Sources */,
+				EF6D8A6DFE76273CF6D20AB2 /* ReportPDFExporter.swift in Sources */,
+				F6116CF03D05BD26A73A85F8 /* ReportSettingsViews.swift in Sources */,
+				98EE5E2C7EB6760CA3FE6244 /* RootView.swift in Sources */,
+				F3B892CA1AADE36C51830994 /* SensorHelperClient.swift in Sources */,
+				65547826EC21C09C136D904C /* StorageIOHistoryPolicy.swift in Sources */,
+				922658B7B925BDE692D35692 /* StorageWorkspaceView.swift in Sources */,
+				1AC38480F8976D0222834E10 /* SystemDeviceArtworkResolver.swift in Sources */,
+				D39EB80BF8CD812387F23631 /* TraceHaloApp.swift in Sources */,
+				71269E2B4EA16E8921E86E47 /* ToolViews.swift in Sources */,
+				75E0EBB0A4CC12D5A4FD2F63 /* TraceHaloApplicationDelegate.swift in Sources */,
+				99C387E011255AD5420BA2F3 /* UISnapshotCapture.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		870FCE12BDCA100A9C1FF092 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				ECAFC7B1FFA883410EC8AF07 /* SensorHelperMain.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		F1C92AF379C61B9DEEDA9023 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				4FE93400DA27902A7149752A /* AppLanguage.swift in Sources */,
+				2342B978E8C94904FED4560E /* BatteryTelemetryParser.swift in Sources */,
+				664DB3B976C1486BF5177EF9 /* Diagnostics.swift in Sources */,
+				637A874578B8C0A7B80AB9F1 /* DisplayMetadataReader.swift in Sources */,
+				D363260A065AC90F04F25E35 /* FeatureModels.swift in Sources */,
+				9E0BA611307B427D96FB55A3 /* Fixtures.swift in Sources */,
+				BB9A8626CD711D744F8CEFAE /* Formatting.swift in Sources */,
+				BA26759D13F4EC198B2B69CF /* GPUDeviceMetadataReader.swift in Sources */,
+				1803528B83F3CE0DCD6E3BBB /* GPUStatisticsReader.swift in Sources */,
+				1663557B35CF072E802AFA5E /* InputDeviceReader.swift in Sources */,
+				C2E2AA9D27312B914D15094F /* LiveServices.swift in Sources */,
+				9C836ADD0E5E155E2F3B1460 /* NetworkServiceNaming.swift in Sources */,
+				CDB5E47D152BF6E72EC70E69 /* SMCSensorReader.swift in Sources */,
+				ED3D5C7B59FFE4A9BB840557 /* Safety.swift in Sources */,
+				D679CAF6FCD43128FD22EF52 /* ScanningServices.swift in Sources */,
+				AA9C9202E678CFD4CC621DAE /* SensorHelperBridge.swift in Sources */,
+				564E8A4EE15275D17CBB04A7 /* StorageIOReader.swift in Sources */,
+				E98BCA7680CAC1243D1DDE3A /* SystemModels.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		AB3E314CAE2C74CA0AD6B090 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 2BBCA66E3BB64165D3AFB263 /* TraceHaloCore */;
+			targetProxy = B4AC4369548F38BB4B084B55 /* PBXContainerItemProxy */;
+		};
+		BE9500BDD6E4CF4B2B30EBBD /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 2BBCA66E3BB64165D3AFB263 /* TraceHaloCore */;
+			targetProxy = 6BBF40A14B3141C4F23B6B22 /* PBXContainerItemProxy */;
+		};
+		C4AA7ACD0FC546E182C0661F /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 40DC65E13E04E526EC80FF54 /* TraceHaloSensorHelper */;
+			targetProxy = 028D271CD5AF56744CA9BB94 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
+/* Begin PBXVariantGroup section */
+		529396A8CA2E169A6A2C4484 /* Localizable.strings */ = {
+			isa = PBXVariantGroup;
+			children = (
+				C550C6405D78C4F38D9B6D9D /* en */,
+				81732498A63C203E466D79EA /* zh-Hans */,
+			);
+			name = Localizable.strings;
+			sourceTree = "<group>";
+		};
+/* End PBXVariantGroup section */
+
+/* Begin XCBuildConfiguration section */
+		1E520BD21112385D98F5CD43 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				DEFINES_MODULE = YES;
+				PRODUCT_MODULE_NAME = TraceHaloCore;
+				PRODUCT_NAME = TraceHaloCore;
+				SKIP_INSTALL = YES;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_VERSION = 6.0;
+			};
+			name = Debug;
+		};
+		363B73DD2567D90BC1EB723D /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				DEFINES_MODULE = YES;
+				PRODUCT_MODULE_NAME = TraceHaloCore;
+				PRODUCT_NAME = TraceHaloCore;
+				SKIP_INSTALL = YES;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				SWIFT_VERSION = 6.0;
+			};
+			name = Release;
+		};
+		60BCBDEDAE1F28635F9A1B95 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_USER_SCRIPT_SANDBOXING = NO;
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				SDKROOT = macosx;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_VERSION = 6.0;
+			};
+			name = Release;
+		};
+		6B6C87A083917810CF7C2176 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				PRODUCT_BUNDLE_IDENTIFIER = "com.tseai.tracehalo.sensor-helper";
+				PRODUCT_MODULE_NAME = TraceHaloSensorHelper;
+				PRODUCT_NAME = TraceHaloSensorHelper;
+				SKIP_INSTALL = YES;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				SWIFT_VERSION = 6.0;
+			};
+			name = Release;
+		};
+		82C4508BFAAF38C7A3DF87E1 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = Xcode/TraceHalo/TraceHalo.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 4DXU5FSLLY;
+				ENABLE_APP_SANDBOX = NO;
+				ENABLE_HARDENED_RUNTIME = YES;
+				EXECUTABLE_NAME = TraceHalo;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = Xcode/TraceHalo/Info.plist;
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.utilities";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				MARKETING_VERSION = 0.0.1;
+				PRODUCT_BUNDLE_IDENTIFIER = com.tseai.tracehalo;
+				PRODUCT_MODULE_NAME = TraceHaloApp;
+				PRODUCT_NAME = TraceHalo;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_VERSION = 6.0;
+			};
+			name = Debug;
+		};
+		9D71A7E9F2D2B0FD980BFB33 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = Xcode/TraceHalo/TraceHalo.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 4DXU5FSLLY;
+				ENABLE_APP_SANDBOX = NO;
+				ENABLE_HARDENED_RUNTIME = YES;
+				EXECUTABLE_NAME = TraceHalo;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = Xcode/TraceHalo/Info.plist;
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.utilities";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				MARKETING_VERSION = 0.0.1;
+				PRODUCT_BUNDLE_IDENTIFIER = com.tseai.tracehalo;
+				PRODUCT_MODULE_NAME = TraceHaloApp;
+				PRODUCT_NAME = TraceHalo;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				SWIFT_VERSION = 6.0;
+			};
+			name = Release;
+		};
+		B9AEFB184C830DE5DB2C4DD3 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_USER_SCRIPT_SANDBOXING = NO;
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				SDKROOT = macosx;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG $(inherited)";
+				SWIFT_VERSION = 6.0;
+			};
+			name = Debug;
+		};
+		E128D6169FCE7D8A225B6B6C /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				PRODUCT_BUNDLE_IDENTIFIER = "com.tseai.tracehalo.sensor-helper";
+				PRODUCT_MODULE_NAME = TraceHaloSensorHelper;
+				PRODUCT_NAME = TraceHaloSensorHelper;
+				SKIP_INSTALL = YES;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_VERSION = 6.0;
+			};
+			name = Debug;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		06D3A86710AF6D466A45A3E2 /* Build configuration list for PBXNativeTarget "TraceHalo" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				82C4508BFAAF38C7A3DF87E1 /* Debug */,
+				9D71A7E9F2D2B0FD980BFB33 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		222F769777E4E490FB268D78 /* Build configuration list for PBXProject "TraceHalo" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				B9AEFB184C830DE5DB2C4DD3 /* Debug */,
+				60BCBDEDAE1F28635F9A1B95 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		B8FCDB9A655A2B4763ADADC9 /* Build configuration list for PBXNativeTarget "TraceHaloSensorHelper" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				E128D6169FCE7D8A225B6B6C /* Debug */,
+				6B6C87A083917810CF7C2176 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		EAE061100B6CEFD858508B9E /* Build configuration list for PBXNativeTarget "TraceHaloCore" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				1E520BD21112385D98F5CD43 /* Debug */,
+				363B73DD2567D90BC1EB723D /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = AC167F3E17FAE47E6F7F8244 /* Project object */;
+}

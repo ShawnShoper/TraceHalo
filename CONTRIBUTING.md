@@ -19,7 +19,7 @@ Before sending a pull request:
 
 1. Keep the change focused and avoid unrelated formatting rewrites.
 2. Add or update tests for changed behavior.
-3. Run `SYSTEMSCOPE_SAFE_TEST_MODE=1 swift test --disable-sandbox`.
+3. Run `TRACEHALO_SAFE_TEST_MODE=1 swift test --disable-sandbox`.
 4. Confirm that tests do not remove files, change startup items, or modify system settings.
 5. Update both English and Simplified Chinese user-facing text when applicable.
 
@@ -42,7 +42,7 @@ See [DEVELOPMENT.md](DEVELOPMENT.md) for build instructions.
 
 1. 保持改动范围明确，不要夹带无关的格式化修改。
 2. 为行为变化新增或更新测试。
-3. 运行 `SYSTEMSCOPE_SAFE_TEST_MODE=1 swift test --disable-sandbox`。
+3. 运行 `TRACEHALO_SAFE_TEST_MODE=1 swift test --disable-sandbox`。
 4. 确认测试不会删除文件、修改启动项或改变系统设置。
 5. 涉及用户文案时，同时更新英文和简体中文。
 

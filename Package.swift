@@ -3,26 +3,26 @@
 import PackageDescription
 
 let package = Package(
-    name: "SystemScope",
+    name: "TraceHalo",
     defaultLocalization: "en",
     platforms: [
         .macOS(.v14)
     ],
     products: [
-        .library(name: "SystemScopeCore", targets: ["SystemScopeCore"]),
-        .executable(name: "SystemScope", targets: ["SystemScopeApp"]),
-        .executable(name: "SystemScopeSensorHelper", targets: ["SystemScopeSensorHelper"])
+        .library(name: "TraceHaloCore", targets: ["TraceHaloCore"]),
+        .executable(name: "TraceHalo", targets: ["TraceHaloApp"]),
+        .executable(name: "TraceHaloSensorHelper", targets: ["TraceHaloSensorHelper"])
     ],
     targets: [
         .target(
-            name: "SystemScopeCore",
+            name: "TraceHaloCore",
             resources: [
                 .process("Resources")
             ]
         ),
         .executableTarget(
-            name: "SystemScopeApp",
-            dependencies: ["SystemScopeCore"],
+            name: "TraceHaloApp",
+            dependencies: ["TraceHaloCore"],
             exclude: [
                 "Resources/mac-studio-center-chroma.png",
                 "Resources/mac-studio-center.png",
@@ -34,16 +34,16 @@ let package = Package(
             ]
         ),
         .executableTarget(
-            name: "SystemScopeSensorHelper",
-            dependencies: ["SystemScopeCore"]
+            name: "TraceHaloSensorHelper",
+            dependencies: ["TraceHaloCore"]
         ),
         .testTarget(
-            name: "SystemScopeCoreTests",
-            dependencies: ["SystemScopeCore"]
+            name: "TraceHaloCoreTests",
+            dependencies: ["TraceHaloCore"]
         ),
         .testTarget(
-            name: "SystemScopeAppTests",
-            dependencies: ["SystemScopeApp", "SystemScopeCore"]
+            name: "TraceHaloAppTests",
+            dependencies: ["TraceHaloApp", "TraceHaloCore"]
         )
     ]
 )
