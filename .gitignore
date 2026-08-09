@@ -11,8 +11,16 @@
 DerivedData/
 *.xcuserstate
 *.xcarchive
+*.xcresult/
+*.dSYM/
+*.xcdistributionlogs/
+.xcode.env.local
 *.xcodeproj/xcuserdata/
 *.xcworkspace/xcuserdata/
+
+# Profiling and coverage output
+*.profraw
+*.profdata
 
 # Local editors and tools
 .idea/
