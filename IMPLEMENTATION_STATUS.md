@@ -1,6 +1,6 @@
 # TraceHalo 实现与验收记录
 
-> 记录日期：2026-08-07
+> 记录日期：2026-08-11
 >
 > 平台：macOS 14+，SwiftUI / Swift 6.2
 >
@@ -161,7 +161,9 @@ make test
 
 - 主窗口、独立设置窗口和菜单栏弹窗在各自 SwiftUI 根节点统一关闭 macOS 默认蓝色 Focus Effect；状态栏的 AppKit 按钮单独关闭 focus ring。Tab、Shift-Tab、Return、Space、first responder 与 VoiceOver 语义仍保留，应用导航、开关和展开状态等业务选择样式不受影响。
 - 本地构建改用全新暂存目录组装 App，避免复用旧 `.app` 时残留资源；支持分别构建 `arm64` 与 `x86_64` 后合并为 Universal 2，并为内嵌传感器 helper 固定签名标识。
-- `scripts/package-release.sh` 对正式发行强制要求 `Developer ID Application`，依次启用 Hardened Runtime 与可信时间戳、提交 Apple 公证、下载公证日志、装订并验证票据、执行 Gatekeeper 门禁，最后生成带 SHA-256 的 ZIP。
-- 当前 Keychain 没有可用 Developer ID 私钥/证书，因此本机只能产出明确标记为 `UNNOTARIZED` 的 ad-hoc 本地测试包；它不应作为已通过 Apple 验证的正式发行物。安装证书并配置 `notarytool` Keychain profile 后，才能生成不会触发“Apple 无法验证”提示的最终包。
+- `make release` 已定义为失败关闭的正式发行入口：固定要求 `Developer ID Application`、Hardened Runtime、可信时间戳、Universal 2、Apple 公证 `Accepted`、ticket 装订与验证，以及 Gatekeeper 门禁；不会因缺少证书或公证凭据降级为 ad-hoc。
+- 正式发行从同一次构建生成 DMG、TAR.GZ、ZIP，为每个产物生成独立 `.sha256`，并生成 `release-manifest.txt`。DMG 是普通用户首选安装包；TAR.GZ 与 ZIP 包含同一个已签名、已公证并已装订 ticket 的 App。
+- 当前 Keychain 已安装 `Developer ID Application: Hao Xie (4DXU5FSLLY)` 及对应私钥；本机 `tracehalo-notary` Keychain profile 已通过 Apple 服务验证。该凭据仅保存在发布机器的钥匙串中，不进入仓库；任何机器缺少该 profile 时，正式 `make release` 会失败关闭且不会产出可发布包。
+- `make release-local` 继续提供明确标记为 `adhoc` 的本地测试包；它跳过公证，不得作为已通过 Apple 验证的正式发行物。
 
 完整视觉证据与比较历史见 `design-qa.md`。
