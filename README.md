@@ -10,7 +10,7 @@
 
 <p align="center">
   <img alt="Beta" src="https://img.shields.io/badge/status-Beta-f0a43c">
-  <img alt="Version" src="https://img.shields.io/badge/version-v000.000.001-4f8cff">
+  <img alt="Version" src="https://img.shields.io/badge/version-v000.001.000-4f8cff">
   <img alt="macOS 14+" src="https://img.shields.io/badge/macOS-14%2B-202733">
   <img alt="License" src="https://img.shields.io/badge/license-Apache--2.0-56b37f">
 </p>
@@ -71,7 +71,7 @@ Closing the main window does not stop the menu bar monitor.
 TraceHalo requires **macOS 14 or later**.
 
 1. Open the [Releases page](https://github.com/ShawnShoper/TraceHalo/releases).
-2. Download the newest ZIP for your Mac. The current Apple silicon package is named like `TraceHalo-v000.000.001-macOS-arm64-adhoc.zip`.
+2. Download the newest ZIP for your Mac. The current Apple silicon package is named like `TraceHalo-v000.001.000-macOS-arm64-adhoc.zip`.
 3. Double-click the ZIP, then drag **TraceHalo.app** into **Applications**.
 4. Open TraceHalo from the Applications folder.
 

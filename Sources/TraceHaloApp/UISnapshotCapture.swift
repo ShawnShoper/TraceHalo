@@ -55,6 +55,7 @@ enum UISnapshotCapture {
         let monitorReferenceSize = CGSize(width: 1_558, height: 1_010)
         let storageReferenceSize = CGSize(width: 1_558, height: 1_010)
         let settingsReferenceSize = CGSize(width: 1_558, height: 1_010)
+        let aboutReferenceSize = CGSize(width: 980, height: 624)
         var targets = [
             Target(
                 name: "00-system-map-overview",
@@ -116,6 +117,16 @@ enum UISnapshotCapture {
                     colorScheme: .light
                 ),
                 size: settingsReferenceSize
+            ),
+            Target(
+                name: "10-settings-about",
+                view: wrappedAbout(
+                    model: portableSettingsModel,
+                    size: aboutReferenceSize,
+                    locale: Locale(identifier: "zh-Hans"),
+                    colorScheme: .dark
+                ),
+                size: aboutReferenceSize
             ),
             Target(
                 name: "11-menu-bar-dashboard",
@@ -204,6 +215,30 @@ enum UISnapshotCapture {
             NavigationStack { SettingsView(isStandalone: true) }
                 .environment(model)
                 .environment(router)
+                .environment(\.locale, locale)
+                .frame(width: size.width, height: size.height)
+                .background(Color(nsColor: .windowBackgroundColor))
+                .preferredColorScheme(colorScheme)
+        )
+    }
+
+    private static func wrappedAbout(
+        model: AppModel,
+        size: CGSize,
+        locale: Locale,
+        colorScheme: ColorScheme
+    ) -> AnyView {
+        let iconPath = FileManager.default.currentDirectoryPath
+            + "/Xcode/TraceHalo/Assets.xcassets/AppIcon.appiconset/icon_512x512@2x.png"
+        let appIcon = NSImage(contentsOfFile: iconPath)
+            ?? NSApplication.shared.applicationIconImage
+            ?? NSImage(size: NSSize(width: 1_024, height: 1_024))
+        return AnyView(
+            SettingsAboutSheet(
+                metadata: .snapshotFixture,
+                appIcon: appIcon
+            )
+                .environment(model)
                 .environment(\.locale, locale)
                 .frame(width: size.width, height: size.height)
                 .background(Color(nsColor: .windowBackgroundColor))

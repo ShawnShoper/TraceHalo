@@ -5,6 +5,47 @@ import XCTest
 import TraceHaloCore
 
 final class MenuBarPerformanceGateTests: XCTestCase {
+    @MainActor
+    func testPopoverWindowUsesSeventyPercentOpacityUnlessAccessibilityRequiresOpaque() {
+        let window = NSWindow(
+            contentRect: NSRect(x: 0, y: 0, width: 282, height: 600),
+            styleMask: [.borderless],
+            backing: .buffered,
+            defer: false
+        )
+        window.isReleasedWhenClosed = false
+        defer { window.close() }
+
+        XCTAssertEqual(MenuBarPopoverOpacityPolicy.alphaValue, 0.70, accuracy: 0.001)
+        XCTAssertTrue(
+            MenuBarPopoverOpacityPolicy.apply(
+                to: window,
+                reduceTransparency: false
+            )
+        )
+        XCTAssertEqual(window.alphaValue, 0.70, accuracy: 0.001)
+        XCTAssertFalse(
+            MenuBarPopoverOpacityPolicy.apply(
+                to: window,
+                reduceTransparency: false
+            ),
+            "重复同步不应继续修改菜单栏弹窗窗口"
+        )
+        XCTAssertTrue(
+            MenuBarPopoverOpacityPolicy.apply(
+                to: window,
+                reduceTransparency: true
+            )
+        )
+        XCTAssertEqual(window.alphaValue, 1, accuracy: 0.001)
+        XCTAssertFalse(
+            MenuBarPopoverOpacityPolicy.apply(
+                to: window,
+                reduceTransparency: true
+            )
+        )
+    }
+
     func testIdenticalPopoverHeightDoesNotRequestAChange() {
         let layout = MenuBarPopoverSizingPolicy.layout(availableHeight: 900)
 
@@ -182,6 +223,57 @@ final class MenuBarPerformanceGateTests: XCTestCase {
 
             controller.closePopover()
             guard await waitForPopoverDismissal(controller) else { return }
+        }
+    }
+
+    @MainActor
+    func testPopoverOpacityIsRestoredAfterControllerRestart() async throws {
+        let model = AppModel()
+        model.showMenuBarSummary = true
+        let anchorButton = NSButton(frame: NSRect(x: 0, y: 0, width: 32, height: 22))
+        let anchorWindow = NSWindow(
+            contentRect: NSRect(x: 100, y: 100, width: 32, height: 22),
+            styleMask: [.borderless],
+            backing: .buffered,
+            defer: false
+        )
+        anchorWindow.isReleasedWhenClosed = false
+        anchorWindow.contentView = anchorButton
+        anchorWindow.orderFront(nil)
+        let controller = MenuBarStatusItemController(
+            model: model,
+            navigationRouter: AppNavigationRouter(destination: .dashboard),
+            popoverAnchorOverride: anchorButton
+        )
+        defer {
+            controller.closePopover()
+            controller.stop()
+            anchorWindow.orderOut(nil)
+            anchorWindow.contentView = nil
+            anchorWindow.close()
+        }
+
+        for cycle in 1...2 {
+            controller.start()
+            XCTAssertTrue(controller.showPopover())
+            guard await waitForPopoverPresentation(controller),
+                  let geometry = controller.popoverGeometrySnapshot,
+                  let windowAlphaValue = geometry.windowAlphaValue else {
+                XCTFail("第 \(cycle) 次启动无法读取菜单栏弹窗透明度")
+                return
+            }
+            XCTAssertEqual(
+                windowAlphaValue,
+                MenuBarPopoverOpacityPolicy.resolvedAlphaValue(
+                    reduceTransparency: NSWorkspace.shared
+                        .accessibilityDisplayShouldReduceTransparency
+                ),
+                accuracy: 0.001
+            )
+
+            controller.closePopover()
+            guard await waitForPopoverDismissal(controller) else { return }
+            controller.stop()
         }
     }
 
@@ -534,6 +626,25 @@ final class MenuBarPerformanceGateTests: XCTestCase {
         file: StaticString = #filePath,
         line: UInt = #line
     ) {
+        guard let windowAlphaValue = geometry.windowAlphaValue else {
+            XCTFail(
+                "第 \(iteration) 次打开后无法读取 popover 窗口透明度",
+                file: file,
+                line: line
+            )
+            return
+        }
+        XCTAssertEqual(
+            windowAlphaValue,
+            MenuBarPopoverOpacityPolicy.resolvedAlphaValue(
+                reduceTransparency: NSWorkspace.shared
+                    .accessibilityDisplayShouldReduceTransparency
+            ),
+            accuracy: 0.001,
+            "第 \(iteration) 次打开后 popover 未保持 70% 不透明度",
+            file: file,
+            line: line
+        )
         let expectedWidth = MenuBarDashboardLayout.collapsedContentWidth
         XCTAssertEqual(
             geometry.popoverContentSize.width,

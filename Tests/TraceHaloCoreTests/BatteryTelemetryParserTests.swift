@@ -67,6 +67,85 @@ final class BatteryTelemetryParserTests: XCTestCase {
         XCTAssertEqual(failureMode.healthBasis, .systemReported)
     }
 
+    func testNumericRegistryHealthUsesIOPMSystemValues() {
+        let cases: [(code: Int, expected: BatteryHealth)] = [
+            (3, .good),
+            (2, .aging),
+            (1, .serviceRecommended)
+        ]
+
+        for testCase in cases {
+            let reading = BatteryTelemetryParser.parse(
+                powerSource: [:],
+                registry: [
+                    "BatteryHealth": testCase.code,
+                    "AppleRawMaxCapacity": 5_900,
+                    "DesignCapacity": 6_000
+                ]
+            )
+
+            XCTAssertEqual(reading.health, testCase.expected, "IOPM health code \(testCase.code)")
+            XCTAssertEqual(reading.healthBasis, .systemReported, "IOPM health code \(testCase.code)")
+        }
+    }
+
+    func testUndefinedOrUnknownNumericHealthFallsBackToCapacityEvidence() {
+        for code in [0, 4, -1] {
+            let reading = BatteryTelemetryParser.parse(
+                powerSource: [:],
+                registry: [
+                    "BatteryHealth": code,
+                    "AppleRawMaxCapacity": 5_900,
+                    "DesignCapacity": 6_000
+                ]
+            )
+
+            XCTAssertEqual(reading.health, .excellent, "IOPM health code \(code)")
+            XCTAssertEqual(reading.healthBasis, .rawCapacityEstimate, "IOPM health code \(code)")
+        }
+    }
+
+    func testPowerSourceHealthAndFailureConditionOverrideRegistryHealth() {
+        let powerSourceWins = BatteryTelemetryParser.parse(
+            powerSource: ["BatteryHealth": "Good"],
+            registry: ["BatteryHealth": 1]
+        )
+        XCTAssertEqual(powerSourceWins.health, .good)
+        XCTAssertEqual(powerSourceWins.healthBasis, .systemReported)
+
+        let normalConditionWins = BatteryTelemetryParser.parse(
+            powerSource: ["BatteryHealthCondition": "Normal"],
+            registry: ["BatteryHealth": 1]
+        )
+        XCTAssertEqual(normalConditionWins.health, .good)
+        XCTAssertEqual(normalConditionWins.healthBasis, .systemReported)
+
+        let failureConditionWins = BatteryTelemetryParser.parse(
+            powerSource: ["BatteryHealthCondition": "Service Recommended"],
+            registry: ["BatteryHealth": 3]
+        )
+        XCTAssertEqual(failureConditionWins.health, .serviceRecommended)
+        XCTAssertEqual(failureConditionWins.healthBasis, .systemReported)
+    }
+
+    func testRemainingChargeDoesNotChangeBatteryHealth() throws {
+        let lowCharge = BatteryTelemetryParser.parse(
+            powerSource: ["Current Capacity": 5, "Max Capacity": 100],
+            registry: ["BatteryHealth": 3]
+        )
+        let highCharge = BatteryTelemetryParser.parse(
+            powerSource: ["Current Capacity": 95, "Max Capacity": 100],
+            registry: ["BatteryHealth": 3]
+        )
+
+        XCTAssertEqual(try XCTUnwrap(lowCharge.chargePercent), 5, accuracy: 0.001)
+        XCTAssertEqual(try XCTUnwrap(highCharge.chargePercent), 95, accuracy: 0.001)
+        XCTAssertEqual(lowCharge.health, .good)
+        XCTAssertEqual(highCharge.health, .good)
+        XCTAssertEqual(lowCharge.healthBasis, .systemReported)
+        XCTAssertEqual(highCharge.healthBasis, .systemReported)
+    }
+
     func testPrivateFailureStatusDoesNotCreateAServiceWarning() {
         let reading = BatteryTelemetryParser.parse(
             powerSource: [:],

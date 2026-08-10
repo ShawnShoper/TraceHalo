@@ -43,6 +43,10 @@ enum BatteryTelemetryParser {
 
         let publicHealth = string(powerSource["BatteryHealth"])
             ?? string(registry["BatteryHealth"])
+        // IOPowerSources publishes Good/Fair/Poor strings, while the
+        // AppleSmartBattery registry may expose the IOPM numeric enum instead:
+        // undefined=0, poor=1, fair=2, good=3.
+        let registryHealthCode = integer(registry["BatteryHealth"])
         let publicCondition = string(powerSource["BatteryHealthCondition"])
             ?? string(registry["BatteryHealthCondition"])
         let failureModesValue = powerSource.keys.contains("BatteryFailureModes")
@@ -52,6 +56,7 @@ enum BatteryTelemetryParser {
 
         let assessment = healthAssessment(
             publicHealth: publicHealth,
+            registryHealthCode: registryHealthCode,
             publicCondition: publicCondition,
             failureModes: failureModes,
             maximumCapacityMAh: rawMaximum,
@@ -70,6 +75,7 @@ enum BatteryTelemetryParser {
 
     private static func healthAssessment(
         publicHealth: String?,
+        registryHealthCode: Int?,
         publicCondition: String?,
         failureModes: [String],
         maximumCapacityMAh: Int?,
@@ -96,6 +102,21 @@ enum BatteryTelemetryParser {
 
         if let publicCondition, normalized(publicCondition) == "normal" {
             return (.good, .systemReported)
+        }
+
+        if let registryHealthCode {
+            switch registryHealthCode {
+            case 3:
+                return (.good, .systemReported)
+            case 2:
+                return (.aging, .systemReported)
+            case 1:
+                return (.serviceRecommended, .systemReported)
+            default:
+                // Zero is IOPM's undefined value. Unknown future values must
+                // not be presented as an authoritative system conclusion.
+                break
+            }
         }
 
         let estimated = BatteryHealthRules.evaluate(

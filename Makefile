@@ -42,5 +42,6 @@ snapshot-qa: snapshot-qa-build
 	test -s "$(SNAPSHOT_QA_OUTPUT)/10-settings.png"
 	test -s "$(SNAPSHOT_QA_OUTPUT)/10-settings-no-battery.png"
 	test -s "$(SNAPSHOT_QA_OUTPUT)/10-settings-light-en.png"
+	test -s "$(SNAPSHOT_QA_OUTPUT)/10-settings-about.png"
 	test -s "$(SNAPSHOT_QA_OUTPUT)/20-menu-bar-detail-battery.png"
 	@echo "Snapshot QA completed: $(SNAPSHOT_QA_OUTPUT)"

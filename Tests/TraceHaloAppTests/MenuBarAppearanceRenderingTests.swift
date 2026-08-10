@@ -4,6 +4,88 @@ import XCTest
 @testable import TraceHaloApp
 
 final class MenuBarAppearanceRenderingTests: XCTestCase {
+    func testAppearanceModeNormalizesStoredValues() {
+        XCTAssertEqual(TraceHaloAppearanceMode(storedValue: nil), .system)
+        XCTAssertEqual(TraceHaloAppearanceMode(storedValue: "unsupported"), .system)
+        for mode in TraceHaloAppearanceMode.allCases {
+            XCTAssertEqual(TraceHaloAppearanceMode(storedValue: mode.rawValue), mode)
+        }
+    }
+
+    @MainActor
+    func testWindowReturnsFromLightToInheritedSystemAppearanceWithoutFocusChange() throws {
+        let inheritedAppearanceSource = NSView(frame: .zero)
+        inheritedAppearanceSource.appearance = try XCTUnwrap(
+            NSAppearance(named: .darkAqua)
+        )
+        let window = NSWindow(
+            contentRect: NSRect(x: 0, y: 0, width: 180, height: 100),
+            styleMask: [.titled],
+            backing: .buffered,
+            defer: false
+        )
+        window.isReleasedWhenClosed = false
+        window.appearanceSource = inheritedAppearanceSource
+        window.orderOut(nil)
+        defer { window.close() }
+        let applicationOverrideName = NSApp.appearance?.name
+
+        XCTAssertTrue(TraceHaloAppearancePolicy.apply(.light, to: window))
+        XCTAssertEqual(window.appearance?.name, .aqua)
+        XCTAssertEqual(
+            window.effectiveAppearance.bestMatch(from: [.aqua, .darkAqua]),
+            .aqua
+        )
+        XCTAssertFalse(window.isKeyWindow)
+        XCTAssertFalse(
+            TraceHaloAppearancePolicy.apply(.light, to: window),
+            "重复应用相同外观必须无副作用"
+        )
+
+        XCTAssertTrue(TraceHaloAppearancePolicy.apply(.system, to: window))
+        XCTAssertNil(window.appearance, "跟随系统必须清除 NSWindow 的显式外观")
+        XCTAssertEqual(
+            window.effectiveAppearance.bestMatch(from: [.aqua, .darkAqua]),
+            .darkAqua,
+            "清除浅色覆盖后应立即继承系统深色，无需重新聚焦窗口"
+        )
+        XCTAssertFalse(window.isKeyWindow)
+        XCTAssertFalse(TraceHaloAppearancePolicy.apply(.system, to: window))
+        XCTAssertEqual(NSApp.appearance?.name, applicationOverrideName)
+    }
+
+    @MainActor
+    func testSystemPopoverUsesResolvedSystemAppearanceWithoutChangingApplicationOverride() throws {
+        let popover = NSPopover()
+        let viewController = NSViewController()
+        viewController.view = NSView(frame: NSRect(x: 0, y: 0, width: 180, height: 100))
+        popover.contentViewController = viewController
+        let systemAppearance = try XCTUnwrap(NSAppearance(named: .darkAqua))
+        let applicationOverrideName = NSApp.appearance?.name
+
+        XCTAssertTrue(
+            TraceHaloAppearancePolicy.apply(
+                .system,
+                to: popover,
+                systemAppearance: systemAppearance
+            )
+        )
+        XCTAssertEqual(
+            popover.appearance?.name,
+            .darkAqua,
+            "NSPopover 的 nil 外观默认是 Vibrant Light，系统模式必须显式解析"
+        )
+        XCTAssertFalse(
+            TraceHaloAppearancePolicy.apply(
+                .system,
+                to: popover,
+                systemAppearance: systemAppearance
+            ),
+            "相同的系统有效外观不应重复触发重绘"
+        )
+        XCTAssertEqual(NSApp.appearance?.name, applicationOverrideName)
+    }
+
     @MainActor
     func testLightAndDarkAppearancesKeepIdenticalExpandedGeometry() async throws {
         let light = try await renderDashboard(appearance: .aqua, colorScheme: .light)

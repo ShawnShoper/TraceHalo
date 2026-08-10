@@ -258,3 +258,114 @@ final class SettingsHistoryRetentionPresentationTests: XCTestCase {
         )
     }
 }
+
+final class SettingsAboutContractTests: XCTestCase {
+    func testAboutLinksUseTheRequiredDestinationsAndOrder() {
+        XCTAssertEqual(SettingsAboutLink.allCases, [.website, .product])
+        XCTAssertEqual(
+            SettingsAboutLinkPolicy.websiteURL.absoluteString,
+            "https://shawnshoper.github.io/"
+        )
+        XCTAssertEqual(
+            SettingsAboutLinkPolicy.productURL.absoluteString,
+            "https://github.com/ShawnShoper/TraceHalo#see-tracehalo"
+        )
+    }
+
+    func testLinkPolicyForwardsTheSelectedDestinationToTheOpener() {
+        var openedURLs: [URL] = []
+
+        SettingsAboutLinkPolicy.open(.website) { openedURLs.append($0) }
+        SettingsAboutLinkPolicy.open(.product) { openedURLs.append($0) }
+
+        XCTAssertEqual(
+            openedURLs,
+            [
+                SettingsAboutLinkPolicy.websiteURL,
+                SettingsAboutLinkPolicy.productURL
+            ]
+        )
+    }
+
+    func testBuildMetadataTrimsValuesAndUsesSafePlaceholders() {
+        let available = SettingsAboutBuildMetadata.resolved(
+            version: " 0.1.0 ",
+            build: " 2\n",
+            releaseChannel: " Beta "
+        )
+        XCTAssertEqual(available.version, "0.1.0")
+        XCTAssertEqual(available.build, "2")
+        XCTAssertEqual(available.releaseChannel, "Beta")
+        XCTAssertEqual(available.versionDisplay, "0.1.0 Beta")
+        XCTAssertEqual(available.buildDisplay, "0.1.0 Beta (2)")
+
+        let missing = SettingsAboutBuildMetadata.resolved(
+            version: " ",
+            build: nil
+        )
+        XCTAssertEqual(missing.version, "—")
+        XCTAssertEqual(missing.build, "—")
+        XCTAssertNil(missing.releaseChannel)
+        XCTAssertEqual(missing.versionDisplay, "—")
+        XCTAssertEqual(missing.buildDisplay, "—")
+    }
+
+    func testAboutVersionDisplayOmitsAnEmptyReleaseChannel() {
+        let metadata = SettingsAboutBuildMetadata.resolved(
+            version: "0.1.0",
+            build: "2",
+            releaseChannel: "  "
+        )
+
+        XCTAssertEqual(metadata.versionDisplay, "0.1.0")
+        XCTAssertEqual(metadata.buildDisplay, "0.1.0 (2)")
+    }
+
+    func testAboutCopyIsLocalizedInBothSupportedLanguages() {
+        let english = Locale(identifier: "en")
+        XCTAssertEqual(
+            ReportSettingsLocalization.text(
+                "settings.about.website.title",
+                locale: english
+            ),
+            "Visit Official Website"
+        )
+        XCTAssertEqual(
+            ReportSettingsLocalization.text(
+                "settings.about.product.title",
+                locale: english
+            ),
+            "View TraceHalo on GitHub"
+        )
+        XCTAssertEqual(
+            ReportSettingsLocalization.text(
+                "settings.about.close",
+                locale: english
+            ),
+            "Close"
+        )
+
+        let simplifiedChinese = Locale(identifier: "zh-Hans")
+        XCTAssertEqual(
+            ReportSettingsLocalization.text(
+                "settings.about.website.title",
+                locale: simplifiedChinese
+            ),
+            "访问官方网站"
+        )
+        XCTAssertEqual(
+            ReportSettingsLocalization.text(
+                "settings.about.product.title",
+                locale: simplifiedChinese
+            ),
+            "在 GitHub 查看 TraceHalo"
+        )
+        XCTAssertEqual(
+            ReportSettingsLocalization.text(
+                "settings.about.productDescription.line1",
+                locale: simplifiedChinese
+            ),
+            "本地优先的 macOS 系统监控工具。"
+        )
+    }
+}

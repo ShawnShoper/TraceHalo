@@ -20,9 +20,14 @@ struct SnapshotQAMain {
             ],
             forName: UserDefaults.argumentDomain
         )
-        let appIconPath = FileManager.default.currentDirectoryPath
-            + "/.build/TraceHalo.app/Contents/Resources/AppIcon.icns"
-        if let appIcon = NSImage(contentsOfFile: appIconPath) {
+        let repositoryRoot = FileManager.default.currentDirectoryPath
+        let appIconPaths = [
+            repositoryRoot + "/.build/TraceHalo.app/Contents/Resources/AppIcon.icns",
+            repositoryRoot
+                + "/Xcode/TraceHalo/Assets.xcassets/AppIcon.appiconset/icon_512x512@2x.png",
+            repositoryRoot + "/Resources/TraceHalo-AppIcon-Source.png",
+        ]
+        if let appIcon = appIconPaths.lazy.compactMap(NSImage.init(contentsOfFile:)).first {
             NSApplication.shared.applicationIconImage = appIcon
         }
         let model = AppModel()

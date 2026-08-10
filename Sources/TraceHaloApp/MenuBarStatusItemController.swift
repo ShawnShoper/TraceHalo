@@ -39,6 +39,8 @@ final class MenuBarStatusItemController: NSObject, NSPopoverDelegate {
     private var lastOpeningWasCold: Bool?
     private var languagePreferenceObserver: NSObjectProtocol?
     private var systemLocaleObserver: NSObjectProtocol?
+    private var accessibilityDisplayObserver: NSObjectProtocol?
+    private var systemAppearanceObservation: NSKeyValueObservation?
 
     init(
         model: AppModel,
@@ -64,6 +66,8 @@ final class MenuBarStatusItemController: NSObject, NSPopoverDelegate {
         installPopover()
         synchronizeFromModel()
         observeLanguagePreference()
+        observeSystemAppearance()
+        observeAccessibilityDisplayOptions()
         observePresentationPreferences()
     }
 
@@ -83,6 +87,8 @@ final class MenuBarStatusItemController: NSObject, NSPopoverDelegate {
         }
         statusItem = nil
         stopObservingLanguagePreference()
+        stopObservingSystemAppearance()
+        stopObservingAccessibilityDisplayOptions()
     }
 
     func setOpenMainWindowAction(_ action: @escaping () -> Void) {
@@ -182,6 +188,42 @@ final class MenuBarStatusItemController: NSObject, NSPopoverDelegate {
         }
     }
 
+    private func observeSystemAppearance() {
+        guard systemAppearanceObservation == nil else { return }
+        systemAppearanceObservation = NSApp.observe(
+            \.effectiveAppearance,
+            options: [.new]
+        ) { [weak self] _, _ in
+            Task { @MainActor [weak self] in
+                self?.synchronizePopoverAppearance()
+            }
+        }
+    }
+
+    private func stopObservingSystemAppearance() {
+        systemAppearanceObservation?.invalidate()
+        systemAppearanceObservation = nil
+    }
+
+    private func observeAccessibilityDisplayOptions() {
+        guard accessibilityDisplayObserver == nil else { return }
+        accessibilityDisplayObserver = NSWorkspace.shared.notificationCenter.addObserver(
+            forName: NSWorkspace.accessibilityDisplayOptionsDidChangeNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor [weak self] in
+                self?.synchronizePopoverAppearance()
+            }
+        }
+    }
+
+    private func stopObservingAccessibilityDisplayOptions() {
+        guard let accessibilityDisplayObserver else { return }
+        NSWorkspace.shared.notificationCenter.removeObserver(accessibilityDisplayObserver)
+        self.accessibilityDisplayObserver = nil
+    }
+
     private func refreshLocalizedStatusButtonText() {
         guard let button = statusItem?.button else { return }
         let localizedText = MenuBarStatusItemLocalizedText.resolve(
@@ -193,6 +235,7 @@ final class MenuBarStatusItemController: NSObject, NSPopoverDelegate {
 
     private func refreshLanguagePresentation() {
         refreshLocalizedStatusButtonText()
+        synchronizePopoverAppearance()
         statusHostingView?.needsLayout = true
         statusItem?.button?.needsLayout = true
         // Localized default labels can have different intrinsic widths. Reuse
@@ -207,6 +250,7 @@ final class MenuBarStatusItemController: NSObject, NSPopoverDelegate {
         // status item feel delayed even when the content is ready.
         popover.animates = false
         popover.delegate = self
+        synchronizePopoverAppearance()
         let initialLayout = MenuBarPopoverSizingPolicy.layout(
             availableHeight: NSScreen.main?.visibleFrame.height
         )
@@ -313,6 +357,9 @@ final class MenuBarStatusItemController: NSObject, NSPopoverDelegate {
     @discardableResult
     func showPopover() -> Bool {
         guard isStarted, let button = popoverAnchorButton else { return false }
+        // Apply before `show` so a warm cached hosting tree cannot draw one
+        // frame using the popover's default Vibrant Light appearance.
+        synchronizePopoverAppearance()
         if popover.isShown {
             if !popoverPresentation.isPresented {
                 popoverPresentation.present()
@@ -334,6 +381,7 @@ final class MenuBarStatusItemController: NSObject, NSPopoverDelegate {
         }
         presentationSizeChangeStartCount = totalPopoverContentSizeChangeCount
         mountPopoverContentIfNeeded(contentSize: layout.contentSize)
+        synchronizePopoverAppearance()
         popoverHostingView?.activatePreferredContentSizeMeasurements(
             for: popoverPresentation.presentationID
         )
@@ -354,6 +402,10 @@ final class MenuBarStatusItemController: NSObject, NSPopoverDelegate {
             finishPopoverDismissal()
             return false
         }
+        // The popover's backing window does not exist until after `show`.
+        // Reapply here so it receives the same resolved appearance before
+        // AppKit makes the panel key.
+        synchronizePopoverAppearance()
         popover.contentViewController?.view.window?.makeKey()
         popoverHostingView?.requestPreferredContentSizeMeasurement()
         return true
@@ -406,6 +458,20 @@ final class MenuBarStatusItemController: NSObject, NSPopoverDelegate {
         viewController.view = hostingView
         popoverHostingView = hostingView
         popover.contentViewController = viewController
+        synchronizePopoverAppearance()
+    }
+
+    private func synchronizePopoverAppearance() {
+        let storedValue = UserDefaults.standard.string(
+            forKey: TraceHaloAppearanceMode.storageKey
+        )
+        TraceHaloAppearancePolicy.apply(
+            TraceHaloAppearanceMode(storedValue: storedValue),
+            to: popover
+        )
+        MenuBarPopoverOpacityPolicy.apply(
+            to: popover.contentViewController?.view.window
+        )
     }
 
     private func releasePopoverContent() {
@@ -528,6 +594,12 @@ final class MenuBarStatusItemController: NSObject, NSPopoverDelegate {
     }
 
     func popoverDidShow(_ notification: Notification) {
+        // NSPopover creates and configures its backing window during
+        // presentation. Reassert the product opacity after that lifecycle
+        // boundary so cold and warm openings render identically.
+        MenuBarPopoverOpacityPolicy.apply(
+            to: popover.contentViewController?.view.window
+        )
         finishPendingPresentationMeasurement(didShow: true)
     }
 
@@ -565,7 +637,8 @@ final class MenuBarStatusItemController: NSObject, NSPopoverDelegate {
             hostingFrameInWindow: popoverHostingView.window.map { _ in
                 popoverHostingView.convert(popoverHostingView.bounds, to: nil)
             },
-            windowContentLayoutRect: popoverHostingView.window?.contentLayoutRect
+            windowContentLayoutRect: popoverHostingView.window?.contentLayoutRect,
+            windowAlphaValue: popoverHostingView.window?.alphaValue
         )
     }
 }
@@ -651,6 +724,34 @@ enum MenuBarPopoverSizingPolicy {
     }
 }
 
+enum MenuBarPopoverOpacityPolicy {
+    /// Product requirement: the menu-bar panel is 70% opaque. macOS Reduce
+    /// Transparency takes precedence so users who requested stronger contrast
+    /// still receive a fully opaque panel.
+    static let alphaValue: CGFloat = 0.70
+
+    static func resolvedAlphaValue(reduceTransparency: Bool) -> CGFloat {
+        reduceTransparency ? 1 : alphaValue
+    }
+
+    @MainActor
+    @discardableResult
+    static func apply(
+        to window: NSWindow?,
+        reduceTransparency: Bool = NSWorkspace.shared.accessibilityDisplayShouldReduceTransparency
+    ) -> Bool {
+        let targetAlphaValue = resolvedAlphaValue(
+            reduceTransparency: reduceTransparency
+        )
+        guard let window,
+              abs(window.alphaValue - targetAlphaValue) > 0.001 else {
+            return false
+        }
+        window.alphaValue = targetAlphaValue
+        return true
+    }
+}
+
 struct MenuBarPopoverPresentation: Equatable, Sendable {
     private(set) var isPresented = false
     private(set) var presentationID: UInt64 = 0
@@ -692,6 +793,7 @@ struct MenuBarPopoverGeometrySnapshot: Equatable, Sendable {
     let hostingBounds: CGRect
     let hostingFrameInWindow: CGRect?
     let windowContentLayoutRect: CGRect?
+    let windowAlphaValue: CGFloat?
 }
 
 private struct PendingPopoverPresentationMeasurement {
@@ -822,7 +924,6 @@ private struct MenuBarStatusHostingRoot: View {
 }
 
 private struct MenuBarPopoverHostingRoot: View {
-    @AppStorage("appearanceMode") private var appearanceMode = "system"
     let model: AppModel
     let navigationRouter: AppNavigationRouter
     let layoutState: MenuBarPopoverLayoutState
@@ -841,15 +942,6 @@ private struct MenuBarPopoverHostingRoot: View {
         .transaction { transaction in
             transaction.animation = nil
         }
-        .preferredColorScheme(preferredColorScheme)
         .traceHaloFocusAppearance()
-    }
-
-    private var preferredColorScheme: ColorScheme? {
-        switch appearanceMode {
-        case "light": .light
-        case "dark": .dark
-        default: nil
-        }
     }
 }

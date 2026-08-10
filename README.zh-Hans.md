@@ -10,7 +10,7 @@
 
 <p align="center">
   <img alt="Beta" src="https://img.shields.io/badge/状态-Beta-f0a43c">
-  <img alt="版本" src="https://img.shields.io/badge/版本-v000.000.001-4f8cff">
+  <img alt="版本" src="https://img.shields.io/badge/版本-v000.001.000-4f8cff">
   <img alt="macOS 14+" src="https://img.shields.io/badge/macOS-14%2B-202733">
   <img alt="许可证" src="https://img.shields.io/badge/许可证-Apache--2.0-56b37f">
 </p>
@@ -71,7 +71,7 @@ TraceHalo **不包含**磁盘清理、SSD TRIM 管理、风扇控制、按键记
 TraceHalo 需要 **macOS 14 或更高版本**。
 
 1. 打开 [Releases 下载页面](https://github.com/ShawnShoper/TraceHalo/releases)。
-2. 下载适合自己 Mac 的最新 ZIP。当前 Apple 芯片安装包名称类似 `TraceHalo-v000.000.001-macOS-arm64-adhoc.zip`。
+2. 下载适合自己 Mac 的最新 ZIP。当前 Apple 芯片安装包名称类似 `TraceHalo-v000.001.000-macOS-arm64-adhoc.zip`。
 3. 双击 ZIP 解压，再把 **TraceHalo.app** 拖入“应用程序”文件夹。
 4. 从“应用程序”文件夹启动 TraceHalo。
 

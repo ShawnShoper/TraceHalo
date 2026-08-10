@@ -668,6 +668,52 @@ final class MainWindowAndSidebarLayoutTests: XCTestCase {
             )
         }
     }
+
+    func testEveryAppBundleInfoPlistDeclaresTheBetaReleaseMetadata() throws {
+        let packageRoot = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let expectations: [(URL, String, String, String)] = [
+            (
+                packageRoot.appendingPathComponent("Resources/Info.plist"),
+                "0.1.0",
+                "2",
+                "Beta"
+            ),
+            (
+                packageRoot.appendingPathComponent("Xcode/TraceHalo/Info.plist"),
+                "$(MARKETING_VERSION)",
+                "$(CURRENT_PROJECT_VERSION)",
+                "$(TRACEHALO_RELEASE_CHANNEL)"
+            ),
+        ]
+
+        for (plistURL, version, build, releaseChannel) in expectations {
+            let data = try Data(contentsOf: plistURL)
+            let plist = try XCTUnwrap(
+                PropertyListSerialization.propertyList(
+                    from: data,
+                    format: nil
+                ) as? [String: Any]
+            )
+            XCTAssertEqual(
+                plist["CFBundleShortVersionString"] as? String,
+                version,
+                plistURL.path
+            )
+            XCTAssertEqual(
+                plist["CFBundleVersion"] as? String,
+                build,
+                plistURL.path
+            )
+            XCTAssertEqual(
+                plist["TraceHaloReleaseChannel"] as? String,
+                releaseChannel,
+                plistURL.path
+            )
+        }
+    }
 }
 
 @MainActor

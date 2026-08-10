@@ -39,5 +39,7 @@
 	<string>Copyright © 2026 TraceHalo contributors.</string>
 	<key>NSPrincipalClass</key>
 	<string>NSApplication</string>
+	<key>TraceHaloReleaseChannel</key>
+	<string>$(TRACEHALO_RELEASE_CHANNEL)</string>
 </dict>
 </plist>

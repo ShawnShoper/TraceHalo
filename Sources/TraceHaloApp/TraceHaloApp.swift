@@ -2,12 +2,88 @@ import AppKit
 import SwiftUI
 import TraceHaloCore
 
+enum TraceHaloAppearanceMode: String, CaseIterable, Sendable {
+    case system
+    case light
+    case dark
+
+    static let storageKey = "appearanceMode"
+    static let defaultValue: Self = .system
+
+    init(storedValue: String?) {
+        self = storedValue.flatMap(Self.init(rawValue:)) ?? .defaultValue
+    }
+
+    var explicitAppearanceName: NSAppearance.Name? {
+        switch self {
+        case .system: nil
+        case .light: .aqua
+        case .dark: .darkAqua
+        }
+    }
+}
+
+@MainActor
+enum TraceHaloAppearancePolicy {
+    @discardableResult
+    static func apply(_ mode: TraceHaloAppearanceMode, to window: NSWindow) -> Bool {
+        let targetAppearance = windowAppearance(for: mode)
+        guard !matches(window.appearance, targetAppearance) else { return false }
+        window.appearance = targetAppearance
+        window.contentView?.needsDisplay = true
+        return true
+    }
+
+    @discardableResult
+    static func apply(
+        _ mode: TraceHaloAppearanceMode,
+        to popover: NSPopover,
+        systemAppearance: NSAppearance = NSApp.effectiveAppearance
+    ) -> Bool {
+        let targetAppearance = popoverAppearance(
+            for: mode,
+            systemAppearance: systemAppearance
+        )
+        var didChange = false
+
+        if !matches(popover.appearance, targetAppearance) {
+            popover.appearance = targetAppearance
+            didChange = true
+        }
+        if let window = popover.contentViewController?.view.window,
+           !matches(window.appearance, targetAppearance) {
+            window.appearance = targetAppearance
+            didChange = true
+        }
+        if didChange {
+            popover.contentViewController?.view.needsDisplay = true
+        }
+        return didChange
+    }
+
+    static func windowAppearance(for mode: TraceHaloAppearanceMode) -> NSAppearance? {
+        mode.explicitAppearanceName.flatMap(NSAppearance.init(named:))
+    }
+
+    static func popoverAppearance(
+        for mode: TraceHaloAppearanceMode,
+        systemAppearance: NSAppearance
+    ) -> NSAppearance {
+        windowAppearance(for: mode) ?? systemAppearance
+    }
+
+    private static func matches(_ current: NSAppearance?, _ target: NSAppearance?) -> Bool {
+        current?.name == target?.name
+    }
+}
+
 #if !SNAPSHOT_QA
 @main
 struct TraceHaloApp: App {
     @NSApplicationDelegateAdaptor(TraceHaloApplicationDelegate.self)
     private var appDelegate
-    @AppStorage("appearanceMode") private var appearanceMode = "system"
+    @AppStorage(TraceHaloAppearanceMode.storageKey)
+    private var appearanceMode = TraceHaloAppearanceMode.defaultValue.rawValue
     @AppStorage(AppLanguagePreference.storageKey)
     private var appLanguagePreference = AppLanguagePreference.defaultValue.rawValue
     private let lockedCanvas: MainWindowLayoutPolicy.LockedCanvas
@@ -26,10 +102,12 @@ struct TraceHaloApp: App {
                     .environment(model)
                     .environment(navigationRouter)
                     .traceHaloLanguageEnvironment()
-                    .preferredColorScheme(preferredColorScheme)
             }
                 .background(
-                    TraceHaloWindowConfigurator(contentSize: lockedCanvas.contentSize)
+                    TraceHaloWindowConfigurator(
+                        contentSize: lockedCanvas.contentSize,
+                        appearanceMode: TraceHaloAppearanceMode(storedValue: appearanceMode)
+                    )
                 )
                 .background(
                     MenuBarWindowActionBridge(
@@ -69,12 +147,12 @@ struct TraceHaloApp: App {
                 SettingsView(isStandalone: true)
                     .environment(model)
                     .traceHaloLanguageEnvironment()
-                    .preferredColorScheme(preferredColorScheme)
             }
                 .background(
                     TraceHaloWindowConfigurator(
                         kind: .settings,
-                        contentSize: lockedCanvas.contentSize
+                        contentSize: lockedCanvas.contentSize,
+                        appearanceMode: TraceHaloAppearanceMode(storedValue: appearanceMode)
                     )
                 )
                 .traceHaloFocusAppearance()
@@ -84,14 +162,6 @@ struct TraceHaloApp: App {
             height: lockedCanvas.contentSize.height
         )
         .windowResizability(.contentSize)
-    }
-
-    private var preferredColorScheme: ColorScheme? {
-        switch appearanceMode {
-        case "light": .light
-        case "dark": .dark
-        default: nil
-        }
     }
 
     private func localizedCommand(_ key: String) -> String {
@@ -414,14 +484,21 @@ private struct TraceHaloWindowConfigurator: NSViewRepresentable {
 
     let kind: Kind
     let contentSize: CGSize
+    let appearanceMode: TraceHaloAppearanceMode
 
-    init(kind: Kind = .main, contentSize: CGSize) {
+    init(
+        kind: Kind = .main,
+        contentSize: CGSize,
+        appearanceMode: TraceHaloAppearanceMode = .defaultValue
+    ) {
         self.kind = kind
         self.contentSize = contentSize
+        self.appearanceMode = appearanceMode
     }
 
     final class Coordinator: @unchecked Sendable {
         weak var configuredWindow: NSWindow?
+        var desiredAppearanceMode = TraceHaloAppearanceMode.defaultValue
         var screenChangeObserver: NSObjectProtocol?
         var didBecomeKeyObserver: NSObjectProtocol?
         var didResignKeyObserver: NSObjectProtocol?
@@ -473,12 +550,15 @@ private struct TraceHaloWindowConfigurator: NSViewRepresentable {
     }
 
     func makeCoordinator() -> Coordinator {
-        Coordinator()
+        let coordinator = Coordinator()
+        coordinator.desiredAppearanceMode = appearanceMode
+        return coordinator
     }
 
     func makeNSView(context: Context) -> ConfigurationView {
         let view = ConfigurationView()
         let coordinator = context.coordinator
+        coordinator.desiredAppearanceMode = appearanceMode
         view.windowDidChange = { window in
             configure(window, coordinator: coordinator)
         }
@@ -486,6 +566,7 @@ private struct TraceHaloWindowConfigurator: NSViewRepresentable {
     }
 
     func updateNSView(_ nsView: ConfigurationView, context: Context) {
+        context.coordinator.desiredAppearanceMode = appearanceMode
         // Close the current style-mask window immediately, then reassert once
         // more after SwiftUI finishes the surrounding scene update.
         configure(nsView.window, coordinator: context.coordinator)
@@ -496,6 +577,11 @@ private struct TraceHaloWindowConfigurator: NSViewRepresentable {
 
     private func configure(_ window: NSWindow?, coordinator: Coordinator) {
         guard let window else { return }
+        // SwiftUI can retain the previous presentation appearance when a
+        // non-nil preferred color scheme is cleared. Keep the AppKit window
+        // authoritative so light/dark -> system takes effect without a focus
+        // or key-window transition.
+        TraceHaloAppearancePolicy.apply(coordinator.desiredAppearanceMode, to: window)
         // SwiftUI may replace or reconfigure the hosting window independently
         // of an AppKit mouse-up. Never carry a partially observed gesture into
         // the next configuration pass.

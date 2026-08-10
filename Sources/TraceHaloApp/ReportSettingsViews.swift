@@ -411,7 +411,8 @@ struct SettingsView: View {
     @Environment(AppModel.self) private var model
     @Environment(\.locale) private var locale
     @AppStorage("launchDestination") private var launchDestination = AppDestination.dashboard.rawValue
-    @AppStorage("appearanceMode") private var appearanceMode = "system"
+    @AppStorage(TraceHaloAppearanceMode.storageKey)
+    private var appearanceMode = TraceHaloAppearanceMode.defaultValue.rawValue
     @AppStorage(DashboardHistoryRetention.storageKey)
     private var historyRetentionDays = DashboardHistoryRetention.defaultValue.rawValue
     @AppStorage(AppLanguagePreference.storageKey)
@@ -657,9 +658,18 @@ struct SettingsView: View {
                     minimumHeight: 66,
                     selection: $appearanceMode,
                     options: [
-                        SettingsSelectionOption(value: "system", title: localized("跟随系统")),
-                        SettingsSelectionOption(value: "light", title: localized("浅色")),
-                        SettingsSelectionOption(value: "dark", title: localized("深色")),
+                        SettingsSelectionOption(
+                            value: TraceHaloAppearanceMode.system.rawValue,
+                            title: localized("跟随系统")
+                        ),
+                        SettingsSelectionOption(
+                            value: TraceHaloAppearanceMode.light.rawValue,
+                            title: localized("浅色")
+                        ),
+                        SettingsSelectionOption(
+                            value: TraceHaloAppearanceMode.dark.rawValue,
+                            title: localized("深色")
+                        ),
                     ]
                 )
 
@@ -804,10 +814,10 @@ struct SettingsView: View {
     }
 
     private var appearanceTitle: String {
-        switch appearanceMode {
-        case "light": localized("浅色")
-        case "dark": localized("深色")
-        default: localized("跟随系统")
+        switch TraceHaloAppearanceMode(storedValue: appearanceMode) {
+        case .light: localized("浅色")
+        case .dark: localized("深色")
+        case .system: localized("跟随系统")
         }
     }
 
@@ -896,7 +906,7 @@ struct SettingsView: View {
         model.temperatureUnit = .celsius
         historyRetentionDays = DashboardHistoryRetention.defaultValue.rawValue
         launchDestination = AppDestination.dashboard.rawValue
-        appearanceMode = "system"
+        appearanceMode = TraceHaloAppearanceMode.defaultValue.rawValue
         appLanguagePreference = AppLanguagePreference.defaultValue.rawValue
 
         guard LaunchAtLoginController.isEnabled else {
@@ -1415,62 +1425,417 @@ private struct SettingsAdvancedSheet: View {
     }
 }
 
-private struct SettingsAboutSheet: View {
+struct SettingsAboutBuildMetadata: Equatable {
+    let version: String
+    let build: String
+    let releaseChannel: String?
+
+    var versionDisplay: String {
+        guard version != "—", let releaseChannel else { return version }
+        return "\(version) \(releaseChannel)"
+    }
+
+    var buildDisplay: String {
+        guard version != "—", build != "—" else { return build }
+        return "\(versionDisplay) (\(build))"
+    }
+
+    static func current(bundle: Bundle = .main) -> SettingsAboutBuildMetadata {
+        resolved(
+            version: bundle.object(
+                forInfoDictionaryKey: "CFBundleShortVersionString"
+            ) as? String,
+            build: bundle.object(forInfoDictionaryKey: "CFBundleVersion") as? String,
+            releaseChannel: bundle.object(
+                forInfoDictionaryKey: "TraceHaloReleaseChannel"
+            ) as? String
+        )
+    }
+
+    static func resolved(
+        version: String?,
+        build: String?,
+        releaseChannel: String? = nil
+    ) -> SettingsAboutBuildMetadata {
+        SettingsAboutBuildMetadata(
+            version: nonempty(version) ?? "—",
+            build: nonempty(build) ?? "—",
+            releaseChannel: nonempty(releaseChannel)
+        )
+    }
+
+    static let snapshotFixture = SettingsAboutBuildMetadata(
+        version: "0.1.0",
+        build: "2",
+        releaseChannel: "Beta"
+    )
+
+    private static func nonempty(_ value: String?) -> String? {
+        guard let value = value?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !value.isEmpty
+        else { return nil }
+        return value
+    }
+}
+
+enum SettingsAboutLink: String, CaseIterable, Identifiable {
+    case website
+    case product
+
+    var id: String { rawValue }
+
+    var url: URL {
+        switch self {
+        case .website:
+            SettingsAboutLinkPolicy.websiteURL
+        case .product:
+            SettingsAboutLinkPolicy.productURL
+        }
+    }
+
+    var titleKey: String {
+        switch self {
+        case .website: "settings.about.website.title"
+        case .product: "settings.about.product.title"
+        }
+    }
+
+    var subtitleKey: String {
+        switch self {
+        case .website: "settings.about.website.subtitle"
+        case .product: "settings.about.product.subtitle"
+        }
+    }
+
+    var symbol: String {
+        switch self {
+        case .website: "globe"
+        case .product: "chevron.left.forwardslash.chevron.right"
+        }
+    }
+}
+
+enum SettingsAboutLinkPolicy {
+    static let websiteURL = URL(string: "https://shawnshoper.github.io/")!
+    static let productURL = URL(
+        string: "https://github.com/ShawnShoper/TraceHalo#see-tracehalo"
+    )!
+
+    static func open(
+        _ link: SettingsAboutLink,
+        using opener: (URL) -> Void
+    ) {
+        opener(link.url)
+    }
+}
+
+struct SettingsAboutSheet: View {
     @Environment(AppModel.self) private var model
     @Environment(\.locale) private var locale
+    @Environment(\.dismiss) private var dismiss
+    @Environment(\.openURL) private var openURL
+
+    let metadata: SettingsAboutBuildMetadata
+    let appIcon: NSImage
+
+    init(
+        metadata: SettingsAboutBuildMetadata = .current(),
+        appIcon: NSImage = NSApplication.shared.applicationIconImage
+    ) {
+        self.metadata = metadata
+        self.appIcon = appIcon
+    }
 
     var body: some View {
-        SettingsDetailContainer(
-            title: localized("settings.about.title"),
-            symbol: "info.circle"
-        ) {
-            SettingsPanel(title: "TraceHalo") {
-                aboutRow(localized("settings.about.version"), version)
-                SettingsRowDivider()
-                aboutRow(localized("settings.about.build"), build)
-                SettingsRowDivider()
-                aboutRow(
-                    localized("settings.about.dataSource"),
-                    ReportSettingsLocalization.dataSourceTitle(model.dataSource, locale: locale)
-                )
-                SettingsRowDivider()
-                aboutRow(
-                    localized("运行模式"),
-                    ReportSettingsLocalization.runtimeModeTitle(
-                        isSafeTest: RuntimeSafetyMode.current == .safeTest,
-                        locale: locale
-                    )
-                )
+        VStack(spacing: 0) {
+            aboutHeader
+            SettingsRowDivider()
+
+            VStack(spacing: 16) {
+                mainCard
+                HStack(spacing: 16) {
+                    ForEach(SettingsAboutLink.allCases) { link in
+                        SettingsAboutLinkButton(
+                            symbol: link.symbol,
+                            title: localized(link.titleKey),
+                            subtitle: localized(link.subtitleKey),
+                            accessibilityHint: localized(
+                                "settings.about.link.accessibilityHint"
+                            ),
+                            action: {
+                                SettingsAboutLinkPolicy.open(link) { url in
+                                    openURL(url)
+                                }
+                            }
+                        )
+                        .help(link.url.absoluteString)
+                        .frame(maxWidth: .infinity)
+                    }
+                }
+                .frame(height: 94)
             }
-
-            Text(localized("settings.about.description"))
-                .font(.callout)
-                .foregroundStyle(CalmTheme.secondaryText)
+            .padding(20)
         }
+        .frame(width: 980, height: 624)
+        .calmPage()
     }
 
-    private var version: String {
-        Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String
-            ?? "—"
-    }
-
-    private var build: String {
-        Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String
-            ?? "—"
-    }
-
-    private func aboutRow(_ label: String, _ value: String) -> some View {
+    private var aboutHeader: some View {
         HStack {
-            Text(label)
-            Spacer(minLength: 16)
-            Text(value)
-                .foregroundStyle(CalmTheme.secondaryText)
+            Text(localized("settings.about.title"))
+                .font(.system(size: 22, weight: .bold))
+            Spacer()
+            Button {
+                dismiss()
+            } label: {
+                Image(systemName: "xmark")
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundStyle(CalmTheme.secondaryText)
+                    .frame(width: 34, height: 34)
+                    .background(
+                        CalmTheme.controlBackground,
+                        in: Circle()
+                    )
+            }
+            .buttonStyle(.plain)
+            .keyboardShortcut(.cancelAction)
+            .accessibilityLabel(localized("settings.about.close"))
+            .help(localized("settings.about.close"))
         }
-        .font(.callout)
+        .padding(.horizontal, 22)
+        .frame(height: 64)
+    }
+
+    private var mainCard: some View {
+        HStack(spacing: 0) {
+            VStack(alignment: .leading, spacing: 16) {
+                productIdentity
+                privacyBanner
+                LazyVGrid(
+                    columns: [
+                        GridItem(.flexible(), spacing: 12),
+                        GridItem(.flexible(), spacing: 12)
+                    ],
+                    spacing: 12
+                ) {
+                    metadataCard(
+                        symbol: "info.circle",
+                        label: localized("settings.about.version"),
+                        value: metadata.versionDisplay
+                    )
+                    metadataCard(
+                        symbol: "chevron.left.forwardslash.chevron.right",
+                        label: localized("settings.about.build"),
+                        value: metadata.buildDisplay
+                    )
+                    metadataCard(
+                        symbol: "externaldrive",
+                        label: localized("settings.about.dataSource"),
+                        value: dataSourceTitle
+                    )
+                    metadataCard(
+                        symbol: "desktopcomputer",
+                        label: localized("运行模式"),
+                        value: runtimeModeTitle
+                    )
+                }
+            }
+            .padding(26)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+
+            Rectangle()
+                .fill(CalmTheme.hairline)
+                .frame(width: 1)
+
+            Image(nsImage: appIcon)
+                .resizable()
+                .interpolation(.high)
+                .scaledToFit()
+                .frame(width: 240, height: 240)
+                .shadow(color: CalmTheme.accent.opacity(0.26), radius: 28, y: 14)
+                .frame(width: 360)
+                .frame(maxHeight: .infinity)
+                .accessibilityHidden(true)
+        }
+        .frame(height: 408)
+        .background(
+            CalmTheme.surface.opacity(0.86),
+            in: RoundedRectangle(cornerRadius: 13, style: .continuous)
+        )
+        .overlay {
+            RoundedRectangle(cornerRadius: 13, style: .continuous)
+                .strokeBorder(CalmTheme.hairline, lineWidth: 0.9)
+        }
+        .clipShape(RoundedRectangle(cornerRadius: 13, style: .continuous))
+    }
+
+    private var productIdentity: some View {
+        HStack(alignment: .top, spacing: 18) {
+            Image(nsImage: appIcon)
+                .resizable()
+                .interpolation(.high)
+                .scaledToFit()
+                .frame(width: 92, height: 92)
+                .accessibilityHidden(true)
+
+            VStack(alignment: .leading, spacing: 8) {
+                HStack(spacing: 12) {
+                    Text("TraceHalo")
+                        .font(.system(size: 38, weight: .bold))
+                    Text("macOS")
+                        .font(.system(size: 14, weight: .medium))
+                        .foregroundStyle(CalmTheme.accent)
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 4)
+                        .overlay {
+                            Capsule()
+                                .strokeBorder(CalmTheme.accent, lineWidth: 1)
+                        }
+                }
+
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(localized("settings.about.productDescription.line1"))
+                    Text(localized("settings.about.productDescription.line2"))
+                }
+                .font(.system(size: 16, weight: .medium))
+                .foregroundStyle(CalmTheme.secondaryText)
+                .lineSpacing(2)
+            }
+        }
+        .accessibilityElement(children: .combine)
+    }
+
+    private var privacyBanner: some View {
+        HStack(spacing: 12) {
+            Image(systemName: "lock.shield")
+                .font(.system(size: 21, weight: .medium))
+            Text(localized("settings.about.privacy"))
+                .font(.system(size: 14.5, weight: .medium))
+                .fixedSize(horizontal: false, vertical: true)
+            Spacer(minLength: 0)
+        }
+        .foregroundStyle(CalmTheme.accent)
+        .padding(.horizontal, 16)
+        .frame(minHeight: 58)
+        .background(
+            CalmTheme.accent.opacity(0.055),
+            in: RoundedRectangle(cornerRadius: 9, style: .continuous)
+        )
+        .overlay {
+            RoundedRectangle(cornerRadius: 9, style: .continuous)
+                .strokeBorder(CalmTheme.accent.opacity(0.66), lineWidth: 0.9)
+        }
+        .accessibilityElement(children: .combine)
+    }
+
+    private func metadataCard(
+        symbol: String,
+        label: String,
+        value: String
+    ) -> some View {
+        HStack(spacing: 12) {
+            Image(systemName: symbol)
+                .font(.system(size: 24, weight: .medium))
+                .foregroundStyle(CalmTheme.accent)
+                .frame(width: 30)
+
+            VStack(alignment: .leading, spacing: 3) {
+                Text(label)
+                    .font(.system(size: 13.5))
+                    .foregroundStyle(CalmTheme.secondaryText)
+                Text(value)
+                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundStyle(CalmTheme.primaryText)
+                    .lineLimit(2)
+            }
+            Spacer(minLength: 0)
+        }
+        .padding(.horizontal, 14)
+        .frame(maxWidth: .infinity, minHeight: 78, alignment: .leading)
+        .background(
+            CalmTheme.surfaceRaised.opacity(0.74),
+            in: RoundedRectangle(cornerRadius: 9, style: .continuous)
+        )
+        .overlay {
+            RoundedRectangle(cornerRadius: 9, style: .continuous)
+                .strokeBorder(CalmTheme.hairline, lineWidth: 0.8)
+        }
+        .accessibilityElement(children: .combine)
+    }
+
+    private var dataSourceTitle: String {
+        model.dataSource == .live
+            ? localized("settings.about.localDataSource")
+            : ReportSettingsLocalization.dataSourceTitle(model.dataSource, locale: locale)
+    }
+
+    private var runtimeModeTitle: String {
+        RuntimeSafetyMode.current == .safeTest
+            ? localized("settings.about.safeMode")
+            : localized("settings.about.localMode")
     }
 
     private func localized(_ key: String) -> String {
         ReportSettingsLocalization.text(key, locale: locale)
+    }
+}
+
+private struct SettingsAboutLinkButton: View {
+    let symbol: String
+    let title: String
+    let subtitle: String
+    let accessibilityHint: String
+    let action: () -> Void
+    @State private var isHovering = false
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 15) {
+                Image(systemName: symbol)
+                    .font(.system(size: 24, weight: .medium))
+                    .foregroundStyle(CalmTheme.accent)
+                    .frame(width: 48, height: 48)
+                    .background(
+                        CalmTheme.accent.opacity(0.1),
+                        in: Circle()
+                    )
+
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(title)
+                        .font(.system(size: 16, weight: .semibold))
+                        .foregroundStyle(CalmTheme.primaryText)
+                    Text(subtitle)
+                        .font(.system(size: 13.5))
+                        .foregroundStyle(CalmTheme.secondaryText)
+                        .lineLimit(1)
+                }
+
+                Spacer(minLength: 12)
+
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundStyle(CalmTheme.tertiaryText)
+            }
+            .padding(.horizontal, 18)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .background(
+                isHovering ? CalmTheme.surfaceRaised : CalmTheme.surface,
+                in: RoundedRectangle(cornerRadius: 12, style: .continuous)
+            )
+            .overlay {
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .strokeBorder(
+                        isHovering ? CalmTheme.accent.opacity(0.6) : CalmTheme.hairline,
+                        lineWidth: 0.9
+                    )
+            }
+        }
+        .buttonStyle(.plain)
+        .focusable(true)
+        .onHover { isHovering = $0 }
+        .accessibilityLabel(title)
+        .accessibilityValue(subtitle)
+        .accessibilityHint(accessibilityHint)
     }
 }
 
