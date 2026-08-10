@@ -106,7 +106,7 @@ enum OverallSystemState {
     }
 }
 
-struct DashboardTelemetrySample: Identifiable, Equatable {
+struct DashboardTelemetrySample: Identifiable, Equatable, Codable, Sendable {
     let date: Date
     let cpuPercent: Double
     let gpuPercent: Double?
@@ -234,8 +234,8 @@ struct StartupPreloadSchedule: Equatable, Sendable {
     let delayBetweenBatches: Duration
 
     static let standard = StartupPreloadSchedule(
-        initialDelay: .milliseconds(700),
-        delayBetweenBatches: .milliseconds(250)
+        initialDelay: .zero,
+        delayBetweenBatches: .zero
     )
     static let immediate = StartupPreloadSchedule(
         initialDelay: .zero,
@@ -243,8 +243,100 @@ struct StartupPreloadSchedule: Equatable, Sendable {
     )
 }
 
+enum StartupPreloadStage: String, CaseIterable, Hashable, Sendable {
+    case telemetry
+    case startupItems
+    case applications
+    case storageHealth
+}
+
+enum StartupPreloadPhase: Equatable, Sendable {
+    case idle
+    case loading
+    case ready
+}
+
+struct StartupPreloadStatus: Equatable, Sendable {
+    var phase: StartupPreloadPhase = .idle
+    var activeStage: StartupPreloadStage?
+    var completedStages: Set<StartupPreloadStage> = []
+    var degradedStages: Set<StartupPreloadStage> = []
+
+    var completedStageCount: Int { completedStages.count }
+    var totalStageCount: Int { StartupPreloadStage.allCases.count }
+    var progress: Double {
+        guard totalStageCount > 0 else { return 1 }
+        return Double(completedStageCount) / Double(totalStageCount)
+    }
+    var isLoading: Bool { phase == .loading }
+
+    mutating func beginIfNeeded() {
+        guard phase == .idle else { return }
+        phase = .loading
+        activeStage = .telemetry
+    }
+
+    mutating func begin(_ stage: StartupPreloadStage) {
+        guard phase == .loading else { return }
+        activeStage = stage
+    }
+
+    mutating func complete(_ stage: StartupPreloadStage, degraded: Bool) {
+        guard phase == .loading else { return }
+        completedStages.insert(stage)
+        if degraded {
+            degradedStages.insert(stage)
+        } else {
+            degradedStages.remove(stage)
+        }
+        activeStage = nil
+    }
+
+    mutating func finish() {
+        guard phase == .loading else { return }
+        phase = .ready
+        activeStage = nil
+    }
+
+    mutating func reconcile(_ stage: StartupPreloadStage, degraded: Bool) {
+        guard phase == .ready else { return }
+        if degraded {
+            degradedStages.insert(stage)
+        } else {
+            degradedStages.remove(stage)
+        }
+    }
+}
+
+enum MonitoringRefreshPolicy {
+    static func effectiveInterval(
+        baseInterval: Double,
+        reducesFrequencyOnBattery: Bool,
+        battery: BatteryState
+    ) -> Double {
+        guard reducesFrequencyOnBattery,
+              battery.availability.isAvailable,
+              isUsingBatteryPower(battery)
+        else {
+            return baseInterval
+        }
+        return max(baseInterval, 10)
+    }
+
+    static func isUsingBatteryPower(_ battery: BatteryState) -> Bool {
+        guard battery.availability.isAvailable else { return false }
+        if let isOnExternalPower = battery.isOnExternalPower {
+            return !isOnExternalPower
+        }
+        // Older cached snapshots did not record the source state. Retain the
+        // previous best-effort behavior only as a compatibility fallback.
+        return !battery.isCharging
+    }
+}
+
 enum DashboardHistoryPolicy {
     static let minimumSampleInterval: TimeInterval = 5
+    static let displayWindowDuration: TimeInterval = 60 * 60
     static let capacity = 720
 
     static func appending(
@@ -262,6 +354,19 @@ enum DashboardHistoryPolicy {
             next = Array(next.suffix(capacity))
         }
         return next
+    }
+
+    static func restoring(
+        _ samples: [DashboardTelemetrySample],
+        now: Date
+    ) -> [DashboardTelemetrySample] {
+        let cutoff = now.addingTimeInterval(-displayWindowDuration)
+        var sampleByDate: [Date: DashboardTelemetrySample] = [:]
+        for sample in samples where sample.date >= cutoff && sample.date <= now {
+            sampleByDate[sample.date] = sample
+        }
+        let sorted = sampleByDate.values.sorted { $0.date < $1.date }
+        return Array(sorted.suffix(capacity))
     }
 }
 
@@ -369,9 +474,11 @@ final class AppModel {
     var refreshInterval: Double = 2
     var temperatureUnit: TemperatureUnit = .celsius
     var showMenuBarSummary = true
-    var pauseWhenOnBattery = false
+    var pauseWhenOnBattery = true
     var includeProcessNamesInReport = false
     var includeVolumeNamesInReport = false
+    private(set) var dashboardHistoryRetention = DashboardHistoryRetention.defaultValue
+    var dashboardHistoryRetentionDays: Int { dashboardHistoryRetention.rawValue }
     private(set) var isLoadingStartupItems = false
     private(set) var isLoadingApplications = false
     private(set) var isLoadingStorageHealth = false
@@ -386,6 +493,11 @@ final class AppModel {
     private(set) var hasLoadedStartupItems = false
     private(set) var hasLoadedApplications = false
     private(set) var hasLoadedStorageHealth = false
+    private(set) var hasAttemptedStartupItems = false
+    private(set) var hasAttemptedApplications = false
+    private(set) var hasAttemptedStorageHealth = false
+    private(set) var startupPreloadStatus = StartupPreloadStatus()
+    private(set) var hasLoadedPersistedDashboardHistory = false
     private(set) var stagedStartupChangeCount = 0
 
     private let metricsProvider: any SystemMetricsProviding
@@ -395,6 +507,8 @@ final class AppModel {
     private let startupMutator: any StartupItemMutating
     private let uninstallExecutor: any UninstallExecuting
     private let supplementalSensorProvider: any SupplementalSensorProviding
+    private let dashboardHistoryStore: any DashboardHistoryPersisting
+    private let dashboardHistoryNow: () -> Date
     private let startupPreloadSchedule: StartupPreloadSchedule
     private let storageHealthStaleInterval: TimeInterval
     private let storageHealthNow: () -> Date
@@ -405,7 +519,13 @@ final class AppModel {
     private var enrichedApplicationIDs = Set<String>()
     private var refreshLoopTask: Task<Void, Never>?
     @ObservationIgnored private var storageHealthSyncTask: Task<Void, Never>?
+    @ObservationIgnored private var dashboardHistoryWriteTask: Task<Void, Never>?
+    @ObservationIgnored private var dashboardHistoryRetentionTask: Task<Void, Never>?
     @ObservationIgnored private var isSnapshotRefreshInFlight = false
+    private var pendingDashboardHistorySample: DashboardTelemetrySample?
+    private var lastPersistedDashboardHistoryDate: Date?
+    private var dashboardHistoryRetentionGeneration = 0
+    private var isLoadingPersistedDashboardHistory = false
     private var dashboardObservation: DashboardObservation?
 
     var isLoadingApplicationDetails: Bool {
@@ -420,6 +540,8 @@ final class AppModel {
         startupMutator: any StartupItemMutating = DenyAllStartupItemMutator(),
         uninstallExecutor: any UninstallExecuting = DenyAllUninstallExecutor(),
         supplementalSensorProvider: any SupplementalSensorProviding = NoSupplementalSensorProvider(),
+        dashboardHistoryStore: any DashboardHistoryPersisting = DisabledDashboardHistoryStore(),
+        dashboardHistoryNow: @escaping () -> Date = Date.init,
         startupPreloadSchedule: StartupPreloadSchedule = .standard,
         storageHealthStaleInterval: TimeInterval = StorageHealthRefreshPolicy.defaultStaleInterval,
         storageHealthNow: @escaping () -> Date = Date.init
@@ -431,6 +553,8 @@ final class AppModel {
         self.startupMutator = startupMutator
         self.uninstallExecutor = uninstallExecutor
         self.supplementalSensorProvider = supplementalSensorProvider
+        self.dashboardHistoryStore = dashboardHistoryStore
+        self.dashboardHistoryNow = dashboardHistoryNow
         self.startupPreloadSchedule = startupPreloadSchedule
         self.storageHealthStaleInterval = storageHealthStaleInterval
         self.storageHealthNow = storageHealthNow
@@ -465,6 +589,11 @@ final class AppModel {
         }
         includeProcessNamesInReport = defaults.bool(forKey: "includeProcessNamesInReport")
         includeVolumeNamesInReport = defaults.bool(forKey: "includeVolumeNamesInReport")
+        if let retention = DashboardHistoryRetention(
+            rawValue: defaults.integer(forKey: DashboardHistoryRetention.storageKey)
+        ) {
+            dashboardHistoryRetention = retention
+        }
     }
 
     static func configured(arguments: [String] = ProcessInfo.processInfo.arguments) -> AppModel {
@@ -480,7 +609,8 @@ final class AppModel {
             healthProvider: StorageHealthService(),
             startupMutator: allowsControlledChanges ? LaunchctlStartupItemMutator() : DenyAllStartupItemMutator(),
             uninstallExecutor: allowsControlledChanges ? TrashUninstallExecutor() : DenyAllUninstallExecutor(),
-            supplementalSensorProvider: SensorHelperClient()
+            supplementalSensorProvider: SensorHelperClient(),
+            dashboardHistoryStore: DashboardHistoryStore()
         )
         model.dataSource = .live
         model.telemetry.history = [:]
@@ -488,6 +618,7 @@ final class AppModel {
         model.dashboardEvents = []
         model.dashboardObservation = nil
         model.hasLoadedSnapshot = false
+        model.startupPreloadStatus.beginIfNeeded()
         return model
     }
 
@@ -495,6 +626,7 @@ final class AppModel {
     /// Closing the main window must not freeze the menu-bar monitor.
     func startMonitoring() {
         guard refreshLoopTask == nil else { return }
+        startupPreloadStatus.beginIfNeeded()
         refreshLoopTask = Task { [weak self] in
             await self?.runRefreshLoop()
         }
@@ -505,21 +637,31 @@ final class AppModel {
         refreshLoopTask = nil
         storageHealthSyncTask?.cancel()
         storageHealthSyncTask = nil
+        dashboardHistoryWriteTask?.cancel()
+        dashboardHistoryWriteTask = nil
+        dashboardHistoryRetentionTask?.cancel()
+        dashboardHistoryRetentionTask = nil
+        pendingDashboardHistorySample = nil
     }
 
     func runRefreshLoop() async {
+        startupPreloadStatus.beginIfNeeded()
+        startupPreloadStatus.begin(.telemetry)
+        await loadPersistedDashboardHistoryIfNeeded()
+        guard !Task.isCancelled else { return }
         await refreshSnapshot()
         guard !Task.isCancelled else { return }
+        startupPreloadStatus.complete(.telemetry, degraded: !hasLoadedSnapshot)
         let preloadTask = Task(priority: .utility) { [weak self] in
             await self?.preloadToolData()
         }
         defer { preloadTask.cancel() }
         while !Task.isCancelled {
-            let batteryAwareInterval = pauseWhenOnBattery
-                && snapshot.battery.availability.isAvailable
-                && !snapshot.battery.isCharging
-                ? max(refreshInterval, 10)
-                : refreshInterval
+            let batteryAwareInterval = MonitoringRefreshPolicy.effectiveInterval(
+                baseInterval: refreshInterval,
+                reducesFrequencyOnBattery: pauseWhenOnBattery,
+                battery: snapshot.battery
+            )
             let nanoseconds = UInt64(max(batteryAwareInterval, 1) * 1_000_000_000)
             try? await Task.sleep(nanoseconds: nanoseconds)
             guard !Task.isCancelled else { break }
@@ -527,20 +669,42 @@ final class AppModel {
         }
     }
 
-    /// Prepares slower inventories after first paint. Work is deliberately
-    /// staggered and sequential so startup never launches three independent
-    /// system scans at once.
+    /// Prepares slower inventories sequentially. Each stage is settled even
+    /// when its provider fails, so the startup overlay can enter a documented
+    /// degraded state instead of blocking forever.
     func preloadToolData() async {
+        startupPreloadStatus.beginIfNeeded()
+        if !startupPreloadStatus.completedStages.contains(.telemetry) {
+            startupPreloadStatus.complete(.telemetry, degraded: !hasLoadedSnapshot)
+        }
+
         guard await waitForNextPreloadBatch(startupPreloadSchedule.initialDelay) else { return }
+        startupPreloadStatus.begin(.startupItems)
         await loadStartupItemsIfNeeded()
         guard !Task.isCancelled else { return }
+        startupPreloadStatus.complete(
+            .startupItems,
+            degraded: !hasLoadedStartupItems
+        )
 
         guard await waitForNextPreloadBatch(startupPreloadSchedule.delayBetweenBatches) else { return }
+        startupPreloadStatus.begin(.applications)
         await loadApplicationsIfNeeded()
         guard !Task.isCancelled else { return }
+        startupPreloadStatus.complete(
+            .applications,
+            degraded: !hasLoadedApplications
+        )
 
         guard await waitForNextPreloadBatch(startupPreloadSchedule.delayBetweenBatches) else { return }
+        startupPreloadStatus.begin(.storageHealth)
         await loadStorageHealthIfNeeded()
+        guard !Task.isCancelled else { return }
+        startupPreloadStatus.complete(
+            .storageHealth,
+            degraded: !hasLoadedStorageHealth
+        )
+        startupPreloadStatus.finish()
     }
 
     private func waitForNextPreloadBatch(_ delay: Duration) async -> Bool {
@@ -564,6 +728,67 @@ final class AppModel {
         defaults.set(pauseWhenOnBattery, forKey: "pauseWhenOnBattery")
         defaults.set(includeProcessNamesInReport, forKey: "includeProcessNamesInReport")
         defaults.set(includeVolumeNamesInReport, forKey: "includeVolumeNamesInReport")
+        defaults.set(
+            dashboardHistoryRetention.rawValue,
+            forKey: DashboardHistoryRetention.storageKey
+        )
+    }
+
+    func updateDashboardHistoryRetentionDays(_ days: Int) {
+        guard let retention = DashboardHistoryRetention(rawValue: days),
+              retention != dashboardHistoryRetention
+        else { return }
+
+        dashboardHistoryRetention = retention
+        UserDefaults.standard.set(
+            retention.rawValue,
+            forKey: DashboardHistoryRetention.storageKey
+        )
+        dashboardHistoryRetentionGeneration += 1
+        let generation = dashboardHistoryRetentionGeneration
+        dashboardHistoryRetentionTask?.cancel()
+        dashboardHistoryRetentionTask = Task { [weak self] in
+            guard let self else { return }
+            let result = await self.dashboardHistoryStore.updateRetention(
+                retention,
+                now: self.dashboardHistoryNow()
+            )
+            guard !Task.isCancelled,
+                  self.dashboardHistoryRetentionGeneration == generation
+            else { return }
+            self.lastPersistedDashboardHistoryDate = result.lastPersistedAt
+            self.dashboardHistoryRetentionTask = nil
+        }
+    }
+
+    func loadPersistedDashboardHistoryIfNeeded() async {
+        guard dataSource == .live else {
+            hasLoadedPersistedDashboardHistory = true
+            return
+        }
+        if isLoadingPersistedDashboardHistory {
+            while isLoadingPersistedDashboardHistory, !Task.isCancelled {
+                try? await Task.sleep(for: .milliseconds(10))
+            }
+            return
+        }
+        guard !hasLoadedPersistedDashboardHistory else { return }
+
+        isLoadingPersistedDashboardHistory = true
+        defer { isLoadingPersistedDashboardHistory = false }
+        let now = dashboardHistoryNow()
+        let result = await dashboardHistoryStore.load(
+            retention: dashboardHistoryRetention,
+            now: now
+        )
+        guard !Task.isCancelled else { return }
+
+        dashboardHistory = DashboardHistoryPolicy.restoring(
+            result.samples,
+            now: now
+        )
+        lastPersistedDashboardHistoryDate = result.lastPersistedAt
+        hasLoadedPersistedDashboardHistory = true
     }
 
     func binding<Value>(_ keyPath: ReferenceWritableKeyPath<AppModel, Value>) -> Binding<Value> {
@@ -578,8 +803,11 @@ final class AppModel {
     }
 
     func loadStartupItemsIfNeeded(force: Bool = false) async {
-        guard force || !hasLoadedStartupItems else { return }
-        guard !isLoadingStartupItems else { return }
+        if isLoadingStartupItems {
+            await waitForLoadToFinish(\.isLoadingStartupItems)
+            return
+        }
+        guard force || !hasAttemptedStartupItems else { return }
         guard !force || stagedStartupChangeCount == 0 else {
             startupItemsError = AppLocalization.currentString(
                 "请先应用或撤销待确认的启动设置，再刷新清单。"
@@ -601,19 +829,26 @@ final class AppModel {
             baselineStartupStates = inventory.baselineStates
             editableStartupItemIDs = inventory.editableIDs
             stagedStartupChangeCount = 0
+            hasAttemptedStartupItems = true
             hasLoadedStartupItems = true
             startupItemsLastLoadedAt = Date()
             clearLoadError(AppLocalization.currentString("启动项目"))
+            startupPreloadStatus.reconcile(.startupItems, degraded: false)
         } catch {
             guard !(error is CancellationError) else { return }
+            hasAttemptedStartupItems = true
             startupItemsError = error.localizedDescription
             recordLoadError(AppLocalization.currentString("启动项目"), error)
+            startupPreloadStatus.reconcile(.startupItems, degraded: true)
         }
     }
 
     func loadApplicationsIfNeeded(force: Bool = false) async {
-        guard force || !hasLoadedApplications else { return }
-        guard !isLoadingApplications else { return }
+        if isLoadingApplications {
+            await waitForLoadToFinish(\.isLoadingApplications)
+            return
+        }
+        guard force || !hasAttemptedApplications else { return }
         isLoadingApplications = true
         applicationsError = nil
         defer { isLoadingApplications = false }
@@ -626,24 +861,31 @@ final class AppModel {
             if selectedApplicationID == nil || !loadedApplications.contains(where: { $0.id == selectedApplicationID }) {
                 selectedApplicationID = loadedApplications.first?.id
             }
+            hasAttemptedApplications = true
             hasLoadedApplications = true
             applicationsLastLoadedAt = Date()
             clearLoadError(AppLocalization.currentString("应用清单"))
+            startupPreloadStatus.reconcile(.applications, degraded: false)
         } catch {
             guard !(error is CancellationError) else { return }
+            hasAttemptedApplications = true
             applicationsError = error.localizedDescription
             recordLoadError(AppLocalization.currentString("应用清单"), error)
+            startupPreloadStatus.reconcile(.applications, degraded: true)
         }
     }
 
     func loadStorageHealthIfNeeded(force: Bool = false) async {
-        guard !isLoadingStorageHealth else { return }
+        if isLoadingStorageHealth {
+            await waitForLoadToFinish(\.isLoadingStorageHealth)
+            return
+        }
 
         let currentVolumeIDs = Set(snapshot.volumes.map(\.id))
         let cachedVolumeIDs = Set(storageHealth.keys)
-        guard force || !hasLoadedStorageHealth || currentVolumeIDs != cachedVolumeIDs else { return }
+        guard force || !hasAttemptedStorageHealth || currentVolumeIDs != cachedVolumeIDs else { return }
 
-        let recordsFullRefresh = force || !hasLoadedStorageHealth
+        let recordsFullRefresh = force || !hasAttemptedStorageHealth
 
         isLoadingStorageHealth = true
         defer { isLoadingStorageHealth = false }
@@ -668,6 +910,7 @@ final class AppModel {
 
             let latestVolumeIDs = Set(snapshot.volumes.map(\.id))
             storageHealth = healthByVolume.filter { latestVolumeIDs.contains($0.key) }
+            hasAttemptedStorageHealth = true
             hasLoadedStorageHealth = true
             shouldForceReload = false
 
@@ -675,6 +918,17 @@ final class AppModel {
                 if recordsFullRefresh {
                     storageHealthLastLoadedAt = storageHealthNow()
                 }
+                startupPreloadStatus.reconcile(.storageHealth, degraded: false)
+                return
+            }
+        }
+    }
+
+    private func waitForLoadToFinish(_ keyPath: KeyPath<AppModel, Bool>) async {
+        while self[keyPath: keyPath], !Task.isCancelled {
+            do {
+                try await Task.sleep(for: .milliseconds(10))
+            } catch {
                 return
             }
         }
@@ -787,6 +1041,37 @@ final class AppModel {
         let sample = Self.dashboardSample(from: snapshot)
         if let nextHistory = DashboardHistoryPolicy.appending(sample, to: dashboardHistory) {
             dashboardHistory = nextHistory
+        }
+        scheduleDashboardHistoryPersistence(sample)
+    }
+
+    private func scheduleDashboardHistoryPersistence(
+        _ sample: DashboardTelemetrySample
+    ) {
+        guard dataSource == .live, hasLoadedPersistedDashboardHistory else { return }
+        if let lastPersistedDashboardHistoryDate {
+            let elapsed = sample.date.timeIntervalSince(lastPersistedDashboardHistoryDate)
+            guard elapsed < 0 || elapsed >= DashboardHistoryStore.persistenceSampleInterval else {
+                return
+            }
+        }
+
+        lastPersistedDashboardHistoryDate = sample.date
+        pendingDashboardHistorySample = sample
+        guard dashboardHistoryWriteTask == nil else { return }
+
+        dashboardHistoryWriteTask = Task { [weak self] in
+            guard let self else { return }
+            while !Task.isCancelled,
+                  let pendingSample = self.pendingDashboardHistorySample {
+                self.pendingDashboardHistorySample = nil
+                await self.dashboardHistoryStore.record(
+                    pendingSample,
+                    retention: self.dashboardHistoryRetention,
+                    now: self.dashboardHistoryNow()
+                )
+            }
+            self.dashboardHistoryWriteTask = nil
         }
     }
 

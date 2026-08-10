@@ -225,10 +225,6 @@ public enum MonitorQuickAction: String, CaseIterable, Codable, Identifiable, Sen
     public init(from decoder: any Decoder) throws {
         let container = try decoder.singleValueContainer()
         let persistedValue = try container.decode(String.self)
-        if persistedValue == TraceHaloLegacyIdentifiers.monitorQuickActionRawValue {
-            self = .traceHalo
-            return
-        }
         guard let action = Self(rawValue: persistedValue) else {
             throw DecodingError.dataCorruptedError(
                 in: container,
@@ -335,17 +331,10 @@ public struct MonitorConfiguration: Codable, Equatable, Sendable {
             decodedStatusBarComponents[3].style = .value
         }
         statusBarComponents = decodedStatusBarComponents
-        var decodedQuickItems = try container.decodeIfPresent(
+        quickItems = try container.decodeIfPresent(
             [MonitorQuickItem].self,
             forKey: .quickItems
         ) ?? Self.defaultQuickItems
-        if let legacyAppIndex = decodedQuickItems.firstIndex(where: {
-            $0.action == .traceHalo
-                && $0.title == TraceHaloLegacyIdentifiers.monitorQuickItemTitle
-        }) {
-            decodedQuickItems[legacyAppIndex].title = "TraceHalo"
-        }
-        quickItems = decodedQuickItems
     }
 
     public func encode(to encoder: any Encoder) throws {
@@ -536,7 +525,7 @@ public extension MonitorQuickAction {
         locale: Locale? = nil
     ) -> String {
         let knownAliases: Set<String> = switch self {
-        case .traceHalo: ["", "TraceHalo", TraceHaloLegacyIdentifiers.monitorQuickItemTitle]
+        case .traceHalo: ["", "TraceHalo"]
         case .activityMonitor: ["", "活动监视器", "Activity Monitor"]
         case .console: ["", "控制台", "Console"]
         case .terminal: ["", "终端", "Terminal"]

@@ -480,6 +480,11 @@ public struct BatteryState: Equatable, Sendable {
     public var availability: CapabilityAvailability
     public var chargePercent: Double?
     public var isCharging: Bool
+    /// `true` when IOPowerSources reports AC power, `false` when the Mac is
+    /// running from its battery, and `nil` when the source is unavailable.
+    /// Charging alone is not a reliable proxy because a fully charged MacBook
+    /// can be connected to AC while `isCharging == false`.
+    public var isOnExternalPower: Bool?
     public var health: BatteryHealth
     public var healthBasis: BatteryHealthBasis
     public var currentCapacityMAh: Int?
@@ -522,6 +527,7 @@ public struct BatteryState: Equatable, Sendable {
         availability: CapabilityAvailability,
         chargePercent: Double? = nil,
         isCharging: Bool = false,
+        isOnExternalPower: Bool? = nil,
         health: BatteryHealth = .unknown,
         healthBasis: BatteryHealthBasis = .unavailable,
         currentCapacityMAh: Int? = nil,
@@ -539,6 +545,7 @@ public struct BatteryState: Equatable, Sendable {
         self.availability = availability
         self.chargePercent = chargePercent
         self.isCharging = isCharging
+        self.isOnExternalPower = isOnExternalPower
         self.health = health
         self.healthBasis = healthBasis
         self.currentCapacityMAh = currentCapacityMAh

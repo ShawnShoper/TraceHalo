@@ -1,21 +1,8 @@
 import Foundation
 
-/// Historical values accepted only when reading data produced by pre-TraceHalo
-/// builds. New configuration and packages must never emit these values.
-public enum TraceHaloLegacyIdentifiers {
-    public static let applicationBundleIdentifier = "app.systemscope.desktop"
-    public static let monitorQuickActionRawValue = "systemScope"
-    public static let monitorQuickItemTitle = "SystemScope"
-    public static let safeTestEnvironmentKey = "SYSTEMSCOPE_SAFE_TEST_MODE"
-    public static let preferencesMigrationCompletionKey =
-        "legacyPreferencesMigration.app.systemscope.desktop.v1"
-}
-
-/// Stable product identifiers shared by the app, helper and preference
-/// compatibility layer. The legacy identifier remains read-only migration data.
+/// Stable product identifiers shared by the app and helper.
 public enum TraceHaloBundleIdentifiers {
     public static let application = "com.tseai.tracehalo"
-    public static let legacyApplication = TraceHaloLegacyIdentifiers.applicationBundleIdentifier
     public static let sensorHelper = "com.tseai.tracehalo.sensor-helper"
 }
 
