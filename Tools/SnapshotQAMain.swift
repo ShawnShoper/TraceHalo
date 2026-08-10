@@ -1,5 +1,6 @@
 import AppKit
 import Foundation
+import TraceHaloCore
 
 @main
 struct SnapshotQAMain {
@@ -11,6 +12,14 @@ struct SnapshotQAMain {
         }
 
         _ = NSApplication.shared
+        UserDefaults.standard.setVolatileDomain(
+            [
+                "launchDestination": AppDestination.dashboard.rawValue,
+                "appearanceMode": "system",
+                AppLanguagePreference.storageKey: AppLanguagePreference.simplifiedChinese.rawValue,
+            ],
+            forName: UserDefaults.argumentDomain
+        )
         let appIconPath = FileManager.default.currentDirectoryPath
             + "/.build/TraceHalo.app/Contents/Resources/AppIcon.icns"
         if let appIcon = NSImage(contentsOfFile: appIconPath) {
@@ -18,17 +27,52 @@ struct SnapshotQAMain {
         }
         let model = AppModel()
         model.monitorConfiguration = .standard
+        model.refreshInterval = 2
+        model.pauseWhenOnBattery = true
+        model.showMenuBarSummary = true
+        model.includeProcessNamesInReport = false
+        model.includeVolumeNamesInReport = false
         await model.refreshAll()
         await model.preloadToolData()
         await model.loadSelectedApplicationDetails()
+
+        var portableSnapshot = SystemSnapshot.fixture
+        portableSnapshot.identity.modelName = "MacBook Pro"
+        portableSnapshot.identity.modelIdentifier = "Mac15,6"
+        portableSnapshot.battery = BatteryState(
+            availability: .available,
+            chargePercent: 78,
+            isCharging: false,
+            isOnExternalPower: false,
+            health: .good,
+            healthBasis: .systemReported
+        )
+        let portableSettingsModel = AppModel(
+            metricsProvider: SnapshotQAMetricsProvider(value: portableSnapshot)
+        )
+        portableSettingsModel.refreshInterval = 2
+        portableSettingsModel.pauseWhenOnBattery = true
+        portableSettingsModel.showMenuBarSummary = true
+        portableSettingsModel.includeProcessNamesInReport = false
+        portableSettingsModel.includeVolumeNamesInReport = false
+        await portableSettingsModel.refreshAll()
         do {
             try UISnapshotCapture.captureAll(
                 model: model,
+                portableSettingsModel: portableSettingsModel,
                 outputDirectory: URL(fileURLWithPath: path, isDirectory: true)
             )
             print("Captured UI snapshots in \(path)")
         } catch {
             print("UI snapshot capture failed: \(error.localizedDescription)")
         }
+    }
+}
+
+private struct SnapshotQAMetricsProvider: SystemMetricsProviding {
+    let value: SystemSnapshot
+
+    func snapshot() async -> SystemSnapshot {
+        value
     }
 }

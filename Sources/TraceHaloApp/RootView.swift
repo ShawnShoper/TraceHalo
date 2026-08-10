@@ -10,6 +10,12 @@ struct RootView: View {
     @State private var isSidebarCollapsed = false
 
     var body: some View {
+        let startupStatus = model.startupPreloadStatus
+        let showsStartupOverlay = StartupPresentationPolicy.showsOverlay(
+            status: startupStatus,
+            hasLoadedSnapshot: model.hasLoadedSnapshot
+        )
+
         ZStack(alignment: .topLeading) {
             HStack(spacing: 0) {
                 if !isSidebarCollapsed {
@@ -22,28 +28,21 @@ struct RootView: View {
 
                 NavigationStack {
                     destinationView(navigationRouter.destination ?? .dashboard)
-                        .redacted(reason: model.hasLoadedSnapshot ? [] : .placeholder)
-                        .allowsHitTesting(model.hasLoadedSnapshot)
-                        .overlay(alignment: .topTrailing) {
-                            if !model.hasLoadedSnapshot {
-                                InitialSamplingStatus()
-                                    .padding(16)
-                                    .transition(
-                                        SidebarMotionPolicy.loadingTransition(reduceMotion: reduceMotion)
-                                    )
-                            }
-                        }
+                        .redacted(reason: showsStartupOverlay ? .placeholder : [])
+                        .allowsHitTesting(!showsStartupOverlay)
                         .animation(
                             SidebarMotionPolicy.easeOutAnimation(
                                 reduceMotion: reduceMotion,
                                 duration: 0.2
                             ),
-                            value: model.hasLoadedSnapshot
+                            value: showsStartupOverlay
                         )
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .background(CalmTheme.pageGradient.ignoresSafeArea())
             }
+            .allowsHitTesting(!showsStartupOverlay)
+            .accessibilityHidden(showsStartupOverlay)
 
             if isSidebarCollapsed {
                 Button {
@@ -66,6 +65,16 @@ struct RootView: View {
                 .padding(10)
                 .help("显示侧边栏")
                 .accessibilityLabel("显示侧边栏")
+                .disabled(showsStartupOverlay)
+                .accessibilityHidden(showsStartupOverlay)
+            }
+
+            if showsStartupOverlay {
+                StartupPreloadOverlay(status: startupStatus)
+                    .transition(
+                        SidebarMotionPolicy.loadingTransition(reduceMotion: reduceMotion)
+                    )
+                    .zIndex(10)
             }
         }
         .tint(CalmTheme.accent)
@@ -485,26 +494,105 @@ enum SidebarMotionPolicy {
     }
 }
 
-private struct InitialSamplingStatus: View {
+enum StartupPresentationPolicy {
+    static func showsOverlay(
+        status: StartupPreloadStatus,
+        hasLoadedSnapshot: Bool
+    ) -> Bool {
+        switch status.phase {
+        case .idle:
+            !hasLoadedSnapshot
+        case .loading:
+            true
+        case .ready:
+            false
+        }
+    }
+}
+
+private struct StartupPreloadOverlay: View {
+    @Environment(\.locale) private var locale
+
+    let status: StartupPreloadStatus
+
     var body: some View {
-        HStack(spacing: 8) {
-            ProgressView()
-                .controlSize(.small)
-            Text("正在读取本机状态")
-                .font(.caption.weight(.semibold))
-                .foregroundStyle(CalmTheme.secondaryText)
+        ZStack {
+            Rectangle()
+                .fill(.black.opacity(0.24))
+                .background(.ultraThinMaterial)
+                .ignoresSafeArea()
+
+            VStack(alignment: .leading, spacing: 16) {
+                HStack(spacing: 11) {
+                    Image(systemName: "gauge.with.dots.needle.50percent")
+                        .font(.system(size: 20, weight: .semibold))
+                        .foregroundStyle(CalmTheme.accent)
+                        .frame(width: 36, height: 36)
+                        .background(CalmTheme.accent.opacity(0.12), in: Circle())
+
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text(localized("正在读取数据"))
+                            .font(.headline.weight(.semibold))
+                            .foregroundStyle(CalmTheme.primaryText)
+                        Text(stageTitle)
+                            .font(.caption)
+                            .foregroundStyle(CalmTheme.secondaryText)
+                    }
+                }
+
+                ProgressView(value: status.progress, total: 1)
+                    .progressViewStyle(.linear)
+                    .tint(CalmTheme.accent)
+
+                HStack(spacing: 8) {
+                    Text("\(status.completedStageCount) / \(status.totalStageCount)")
+                        .font(.caption.monospacedDigit().weight(.semibold))
+                        .foregroundStyle(CalmTheme.secondaryText)
+
+                    Spacer(minLength: 12)
+
+                    if !status.degradedStages.isEmpty {
+                        Label(localized("部分数据受限"), systemImage: "exclamationmark.circle.fill")
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(CalmTheme.amber)
+                    }
+                }
+            }
+            .padding(20)
+            .frame(width: 360)
+            .background(
+                CalmTheme.surfaceRaised,
+                in: RoundedRectangle(cornerRadius: 16, style: .continuous)
+            )
+            .overlay {
+                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                    .strokeBorder(CalmTheme.strongHairline)
+            }
+            .shadow(color: .black.opacity(0.22), radius: 24, y: 12)
         }
-        .padding(.horizontal, 11)
-        .padding(.vertical, 8)
-        .background(
-            CalmTheme.surfaceRaised,
-            in: RoundedRectangle(cornerRadius: CalmTheme.controlRadius, style: .continuous)
-        )
-        .overlay {
-            RoundedRectangle(cornerRadius: CalmTheme.controlRadius, style: .continuous)
-                .strokeBorder(CalmTheme.strongHairline)
-        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .accessibilityElement(children: .combine)
+        .accessibilityLabel(localized("正在读取数据"))
+        .accessibilityValue("\(stageTitle)，\(status.completedStageCount) / \(status.totalStageCount)")
+    }
+
+    private var stageTitle: String {
+        switch status.activeStage {
+        case .telemetry:
+            localized("正在读取本机状态")
+        case .startupItems:
+            localized("正在后台读取启动项目")
+        case .applications:
+            localized("正在后台准备应用清单")
+        case .storageHealth:
+            localized("正在读取存储状态。")
+        case nil:
+            localized("正在读取数据")
+        }
+    }
+
+    private func localized(_ key: String) -> String {
+        AppLocalization.string(key, defaultValue: key, locale: locale)
     }
 }
 
@@ -520,10 +608,10 @@ private struct SidebarStatusView: View {
 
             HStack(spacing: 8) {
                 Circle()
-                    .fill(model.lastError == nil ? CalmTheme.mint : CalmTheme.rose)
+                    .fill(statusColor)
                     .frame(width: 6, height: 6)
                     .shadow(
-                        color: (model.lastError == nil ? CalmTheme.mint : CalmTheme.rose).opacity(0.25),
+                        color: statusColor.opacity(0.25),
                         radius: 3
                     )
                 VStack(alignment: .leading, spacing: 1) {
@@ -532,8 +620,8 @@ private struct SidebarStatusView: View {
                         .foregroundStyle(CalmTheme.secondaryText)
                     Text(
                         AppLocalization.string(
-                            model.isRefreshing ? "更新中" : "刚刚",
-                            defaultValue: model.isRefreshing ? "更新中" : "刚刚",
+                            statusDetailKey,
+                            defaultValue: statusDetailKey,
                             locale: locale
                         )
                     )
@@ -552,5 +640,22 @@ private struct SidebarStatusView: View {
             .padding(.vertical, 11)
         }
         .background(CalmTheme.sidebar)
+    }
+
+    private var hasDegradedStartupData: Bool {
+        model.startupPreloadStatus.phase == .ready
+            && !model.startupPreloadStatus.degradedStages.isEmpty
+    }
+
+    private var statusColor: Color {
+        if model.lastError != nil { return CalmTheme.rose }
+        if hasDegradedStartupData { return CalmTheme.amber }
+        return CalmTheme.mint
+    }
+
+    private var statusDetailKey: String {
+        if model.isRefreshing { return "更新中" }
+        if model.lastError != nil || hasDegradedStartupData { return "部分数据受限" }
+        return "刚刚"
     }
 }

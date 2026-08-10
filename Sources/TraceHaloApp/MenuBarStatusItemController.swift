@@ -467,9 +467,19 @@ final class MenuBarStatusItemController: NSObject, NSPopoverDelegate {
     }
 
     func showMainWindow() {
+        presentMainWindow(navigatingTo: .dashboard)
+    }
+
+    func activateMainWindowPreservingDestination() {
+        presentMainWindow(navigatingTo: nil)
+    }
+
+    private func presentMainWindow(navigatingTo destination: AppDestination?) {
         closePopover()
         NSApplication.shared.setActivationPolicy(.regular)
-        navigationRouter.navigate(to: .dashboard)
+        if let destination {
+            navigationRouter.navigate(to: destination)
+        }
         if let window = mainWindow {
             window.makeKeyAndOrderFront(nil)
         } else {

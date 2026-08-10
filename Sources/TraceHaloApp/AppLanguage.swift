@@ -36,6 +36,13 @@ enum AppLocalization {
     /// See the Core resolver for why packaged apps must look in
     /// `Contents/Resources` before touching SwiftPM's generated accessor.
     private static var packagedOrModuleResourceBundle: Bundle {
+#if SNAPSHOT_QA
+        if let overridePath = ProcessInfo.processInfo.environment[
+            "TRACEHALO_SNAPSHOT_APP_RESOURCE_BUNDLE"
+        ], let overrideBundle = Bundle(path: overridePath) {
+            return overrideBundle
+        }
+#endif
         if let resourcesURL = Bundle.main.resourceURL,
            let packagedBundle = Bundle(
                url: resourcesURL.appendingPathComponent(

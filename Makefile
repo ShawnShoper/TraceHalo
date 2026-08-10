@@ -36,8 +36,11 @@ snapshot-qa-build:
 
 snapshot-qa: snapshot-qa-build
 	mkdir -p "$(SNAPSHOT_QA_OUTPUT)"
-	"$(SNAPSHOT_QA_BUILD_DIR)/TraceHaloSnapshotQA" "$(SNAPSHOT_QA_OUTPUT)"
+	TRACEHALO_SNAPSHOT_APP_RESOURCE_BUNDLE="$(SWIFTPM_BIN_PATH)/TraceHalo_TraceHaloApp.bundle" "$(SNAPSHOT_QA_BUILD_DIR)/TraceHaloSnapshotQA" "$(SNAPSHOT_QA_OUTPUT)"
 	test -s "$(SNAPSHOT_QA_OUTPUT)/00-system-map-overview.png"
 	test -s "$(SNAPSHOT_QA_OUTPUT)/08-input-devices.png"
+	test -s "$(SNAPSHOT_QA_OUTPUT)/10-settings.png"
+	test -s "$(SNAPSHOT_QA_OUTPUT)/10-settings-no-battery.png"
+	test -s "$(SNAPSHOT_QA_OUTPUT)/10-settings-light-en.png"
 	test -s "$(SNAPSHOT_QA_OUTPUT)/20-menu-bar-detail-battery.png"
 	@echo "Snapshot QA completed: $(SNAPSHOT_QA_OUTPUT)"

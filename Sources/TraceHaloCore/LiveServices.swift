@@ -711,10 +711,20 @@ public actor LiveSystemService: SystemMetricsProviding {
         let cycleCount = integer(registry["CycleCount"])
         let designCycleCount = integer(registry["DesignCycleCount"])
         let remaining = integer(description[kIOPSTimeToEmptyKey as String])
+        let powerSourceState = description[kIOPSPowerSourceStateKey as String] as? String
+        let isOnExternalPower: Bool?
+        if powerSourceState == (kIOPSACPowerValue as String) {
+            isOnExternalPower = true
+        } else if powerSourceState == (kIOPSBatteryPowerValue as String) {
+            isOnExternalPower = false
+        } else {
+            isOnExternalPower = nil
+        }
         return BatteryState(
             availability: .available,
             chargePercent: telemetry.chargePercent,
             isCharging: boolean(description[kIOPSIsChargingKey as String]) ?? false,
+            isOnExternalPower: isOnExternalPower,
             health: telemetry.health,
             healthBasis: telemetry.healthBasis,
             currentCapacityMAh: telemetry.currentCapacityMAh,

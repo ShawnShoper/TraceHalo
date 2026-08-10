@@ -5,7 +5,6 @@ import XCTest
 final class SensorHelperBridgeTests: XCTestCase {
     func testProductAndHelperIdentifiersMatchPackagedServices() {
         XCTAssertEqual(TraceHaloBundleIdentifiers.application, "com.tseai.tracehalo")
-        XCTAssertEqual(TraceHaloBundleIdentifiers.legacyApplication, "app.systemscope.desktop")
         XCTAssertEqual(
             SensorHelperConstants.machServiceName,
             "com.tseai.tracehalo.sensor-helper"

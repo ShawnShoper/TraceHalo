@@ -7,18 +7,11 @@ final class SafetyTests: XCTestCase {
     private let uninstallPolicy = UninstallPathPolicy()
     private let testHome = "/Users/tracehalo-test"
 
-    func testSafetyModeUsesTraceHaloEnvironmentAndReadsLegacyEnvironment() {
+    func testSafetyModeUsesTraceHaloEnvironment() {
         XCTAssertEqual(
             RuntimeSafetyMode.resolve(
                 arguments: ["TraceHalo"],
                 environment: ["TRACEHALO_SAFE_TEST_MODE": "1"]
-            ),
-            .safeTest
-        )
-        XCTAssertEqual(
-            RuntimeSafetyMode.resolve(
-                arguments: ["TraceHalo"],
-                environment: [TraceHaloLegacyIdentifiers.safeTestEnvironmentKey: "1"]
             ),
             .safeTest
         )

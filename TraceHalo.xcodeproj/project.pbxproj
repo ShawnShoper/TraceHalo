@@ -7,8 +7,8 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		0768AA5E669E8BC85711402C /* LegacyPreferencesMigration.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6836782C39D50BA8BAA607FE /* LegacyPreferencesMigration.swift */; };
 		0841B250A7435118B6C321AA /* DashboardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 60970E2EC1369EB8ACA5D618 /* DashboardView.swift */; };
+		0A1C5E62E5D24D3EB4732C3A /* DashboardHistoryStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0A1C5E62E5D24D3EB4732C3B /* DashboardHistoryStore.swift */; };
 		0BFFF12C7B0A472AD1236AEC /* AppComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4D97C0AA67E73E4A30C0FCBE /* AppComponents.swift */; };
 		1663557B35CF072E802AFA5E /* InputDeviceReader.swift in Sources */ = {isa = PBXBuildFile; fileRef = 822A120DEAB0620EC8A4B904 /* InputDeviceReader.swift */; };
 		17F2B62C8F70498FFF0EC041 /* com.tseai.tracehalo.sensor-helper.plist in Copy LaunchDaemon Configuration */ = {isa = PBXBuildFile; fileRef = 7F718BE2F7525544D8C7D76E /* com.tseai.tracehalo.sensor-helper.plist */; };
@@ -112,6 +112,7 @@
 
 /* Begin PBXFileReference section */
 		060F0D591FB97C9CAA9238F0 /* ReportPDFExporter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReportPDFExporter.swift; sourceTree = "<group>"; };
+		0A1C5E62E5D24D3EB4732C3B /* DashboardHistoryStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardHistoryStore.swift; sourceTree = "<group>"; };
 		0A6DF58994C1264DCD78BB93 /* Package.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Package.swift; sourceTree = SOURCE_ROOT; };
 		0AFA4F181438F2B4064712D4 /* SensorHelperBridge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SensorHelperBridge.swift; sourceTree = "<group>"; };
 		0C6BF8BA18A12048F240D310 /* ScanningServices.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScanningServices.swift; sourceTree = "<group>"; };
@@ -136,7 +137,6 @@
 		60970E2EC1369EB8ACA5D618 /* DashboardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardView.swift; sourceTree = "<group>"; };
 		625208FE3435FACCEBD82716 /* SensorHelperClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SensorHelperClient.swift; sourceTree = "<group>"; };
 		65917C60D0A0A06049D7172E /* PreferencesPersistenceController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PreferencesPersistenceController.swift; sourceTree = "<group>"; };
-		6836782C39D50BA8BAA607FE /* LegacyPreferencesMigration.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LegacyPreferencesMigration.swift; sourceTree = "<group>"; };
 		6A07E3D5A4482244CF159568 /* SystemModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SystemModels.swift; sourceTree = "<group>"; };
 		6A3B85C66D97BF394515ED77 /* AppModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppModel.swift; sourceTree = "<group>"; };
 		6CC6F0E5E9583F28D0282B96 /* MenuBarDashboardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuBarDashboardView.swift; sourceTree = "<group>"; };
@@ -206,10 +206,10 @@
 				6A3B85C66D97BF394515ED77 /* AppModel.swift */,
 				F1074D262DC7DE1D264797BB /* AppNavigationRouter.swift */,
 				45A050AC37B3083DE66840C3 /* CalmTheme.swift */,
+				0A1C5E62E5D24D3EB4732C3B /* DashboardHistoryStore.swift */,
 				60970E2EC1369EB8ACA5D618 /* DashboardView.swift */,
 				F377ADE9EDC226C7950A24B9 /* HardwareViews.swift */,
 				D0D359454BF44F2A96FA4226 /* LaunchAtLoginController.swift */,
-				6836782C39D50BA8BAA607FE /* LegacyPreferencesMigration.swift */,
 				6CC6F0E5E9583F28D0282B96 /* MenuBarDashboardView.swift */,
 				19FFE3737CB264A80169E19C /* MenuBarStatusItemController.swift */,
 				B6A469BE664B618D488EB1A3 /* MenuBarStatusLayout.swift */,
@@ -477,10 +477,10 @@
 				2839BB5A25F29F993550CED7 /* AppModel.swift in Sources */,
 				D7AD900369853E3D7A108163 /* AppNavigationRouter.swift in Sources */,
 				5232B0C84610099D54337F7B /* CalmTheme.swift in Sources */,
+				0A1C5E62E5D24D3EB4732C3A /* DashboardHistoryStore.swift in Sources */,
 				0841B250A7435118B6C321AA /* DashboardView.swift in Sources */,
 				2B8891A6887E09A71D2ED9D5 /* HardwareViews.swift in Sources */,
 				2E8355F9C10DB78A3A865364 /* LaunchAtLoginController.swift in Sources */,
-				0768AA5E669E8BC85711402C /* LegacyPreferencesMigration.swift in Sources */,
 				4F42ADE17D36A988457AAF14 /* MenuBarDashboardView.swift in Sources */,
 				76DF806F9286CFC8C2898D26 /* MenuBarStatusItemController.swift in Sources */,
 				225048424CDAA76D33870DDB /* MenuBarStatusLayout.swift in Sources */,
@@ -630,7 +630,7 @@
 				ENABLE_APP_SANDBOX = NO;
 				ENABLE_HARDENED_RUNTIME = YES;
 				EXECUTABLE_NAME = TraceHalo;
-				GENERATE_INFOPLIST_FILE = NO;
+				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = Xcode/TraceHalo/Info.plist;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.utilities";
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -657,7 +657,7 @@
 				ENABLE_APP_SANDBOX = NO;
 				ENABLE_HARDENED_RUNTIME = YES;
 				EXECUTABLE_NAME = TraceHalo;
-				GENERATE_INFOPLIST_FILE = NO;
+				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = Xcode/TraceHalo/Info.plist;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.utilities";
 				LD_RUNPATH_SEARCH_PATHS = (

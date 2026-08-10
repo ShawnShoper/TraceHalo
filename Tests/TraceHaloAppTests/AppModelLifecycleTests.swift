@@ -5,9 +5,107 @@ import XCTest
 import TraceHaloCore
 
 final class AppModelLifecycleTests: XCTestCase {
+    func testBatteryAwareRefreshUsesReportedPowerSourceInsteadOfChargingState() {
+        let pluggedInButNotCharging = BatteryState(
+            availability: .available,
+            isCharging: false,
+            isOnExternalPower: true
+        )
+        let runningOnBattery = BatteryState(
+            availability: .available,
+            isCharging: false,
+            isOnExternalPower: false
+        )
+
+        XCTAssertEqual(
+            MonitoringRefreshPolicy.effectiveInterval(
+                baseInterval: 2,
+                reducesFrequencyOnBattery: true,
+                battery: pluggedInButNotCharging
+            ),
+            2
+        )
+        XCTAssertEqual(
+            MonitoringRefreshPolicy.effectiveInterval(
+                baseInterval: 2,
+                reducesFrequencyOnBattery: true,
+                battery: runningOnBattery
+            ),
+            10
+        )
+    }
+
+    func testBatteryAwareRefreshIgnoresUnavailableBatteryAndDisabledThrottle() {
+        let noBattery = BatteryState(availability: .unavailable(reason: "desktop"))
+        let runningOnBattery = BatteryState(
+            availability: .available,
+            isCharging: false,
+            isOnExternalPower: false
+        )
+
+        XCTAssertEqual(
+            MonitoringRefreshPolicy.effectiveInterval(
+                baseInterval: 1,
+                reducesFrequencyOnBattery: true,
+                battery: noBattery
+            ),
+            1
+        )
+        XCTAssertEqual(
+            MonitoringRefreshPolicy.effectiveInterval(
+                baseInterval: 1,
+                reducesFrequencyOnBattery: false,
+                battery: runningOnBattery
+            ),
+            1
+        )
+    }
+
+    @MainActor
+    func testConfiguredLiveModelBlocksTheFirstFrameButFixtureQAIsImmediatelyReady() {
+        let liveModel = AppModel.configured(arguments: ["TraceHalo"])
+        let fixtureModel = AppModel.configured(arguments: ["TraceHalo", "--fixture-data"])
+
+        XCTAssertEqual(liveModel.startupPreloadStatus.phase, .loading)
+        XCTAssertEqual(liveModel.startupPreloadStatus.activeStage, .telemetry)
+        XCTAssertTrue(
+            StartupPresentationPolicy.showsOverlay(
+                status: liveModel.startupPreloadStatus,
+                hasLoadedSnapshot: liveModel.hasLoadedSnapshot
+            )
+        )
+        XCTAssertEqual(fixtureModel.startupPreloadStatus.phase, .idle)
+        XCTAssertFalse(
+            StartupPresentationPolicy.showsOverlay(
+                status: fixtureModel.startupPreloadStatus,
+                hasLoadedSnapshot: fixtureModel.hasLoadedSnapshot
+            )
+        )
+    }
+
+    func testReadyTelemetryDegradationReleasesTheBlockingOverlay() {
+        var status = StartupPreloadStatus()
+        status.beginIfNeeded()
+        status.complete(.telemetry, degraded: true)
+        status.complete(.startupItems, degraded: false)
+        status.complete(.applications, degraded: false)
+        status.complete(.storageHealth, degraded: false)
+        status.finish()
+
+        XCTAssertEqual(status.phase, .ready)
+        XCTAssertEqual(status.degradedStages, [.telemetry])
+        XCTAssertFalse(
+            StartupPresentationPolicy.showsOverlay(
+                status: status,
+                hasLoadedSnapshot: false
+            ),
+            "A settled telemetry failure must expose the degraded cached content instead of blocking forever"
+        )
+    }
+
     @MainActor
     func testApplicationRemainsRunningAfterLastWindowCloses() {
-        let delegate = TraceHaloApplicationDelegate(preferenceMigration: {})
+        let delegate = TraceHaloApplicationDelegate()
 
         XCTAssertFalse(
             delegate.applicationShouldTerminateAfterLastWindowClosed(NSApplication.shared)
@@ -180,6 +278,101 @@ final class AppModelLifecycleTests: XCTestCase {
         XCTAssertTrue(model.hasLoadedStartupItems)
         XCTAssertTrue(model.hasLoadedApplications)
         XCTAssertTrue(model.hasLoadedStorageHealth)
+        XCTAssertEqual(model.startupPreloadStatus.phase, .ready)
+        XCTAssertEqual(
+            model.startupPreloadStatus.completedStages,
+            Set(StartupPreloadStage.allCases)
+        )
+        XCTAssertTrue(model.startupPreloadStatus.degradedStages.isEmpty)
+        XCTAssertEqual(model.startupPreloadStatus.progress, 1)
+
+        await model.loadStartupItemsIfNeeded()
+        await model.loadApplicationsIfNeeded()
+        await model.loadStorageHealthIfNeeded()
+
+        let eventsAfterMenuEntries = await recorder.events()
+        XCTAssertEqual(
+            eventsAfterMenuEntries,
+            events,
+            "Returning to an already prepared menu must reuse its cached model data"
+        )
+    }
+
+    @MainActor
+    func testStartupPreloadSettlesFailuresAndDoesNotRetryThemOnMenuEntry() async {
+        let recorder = PreloadOrderRecorder()
+        let model = AppModel(
+            startupProvider: OrderedFailingStartupProvider(recorder: recorder),
+            applicationProvider: OrderedFailingApplicationProvider(recorder: recorder),
+            healthProvider: OrderedStorageHealthProvider(recorder: recorder),
+            startupPreloadSchedule: .immediate
+        )
+
+        await model.preloadToolData()
+
+        XCTAssertEqual(model.startupPreloadStatus.phase, .ready)
+        XCTAssertEqual(
+            model.startupPreloadStatus.completedStages,
+            Set(StartupPreloadStage.allCases)
+        )
+        XCTAssertEqual(
+            model.startupPreloadStatus.degradedStages,
+            Set([.startupItems, .applications])
+        )
+        XCTAssertTrue(model.hasAttemptedStartupItems)
+        XCTAssertTrue(model.hasAttemptedApplications)
+        XCTAssertTrue(model.hasAttemptedStorageHealth)
+        XCTAssertFalse(model.hasLoadedStartupItems)
+        XCTAssertFalse(model.hasLoadedApplications)
+        XCTAssertTrue(model.hasLoadedStorageHealth)
+
+        let eventsAfterPreload = await recorder.events()
+        await model.loadStartupItemsIfNeeded()
+        await model.loadApplicationsIfNeeded()
+        let eventsAfterMenuEntries = await recorder.events()
+        XCTAssertEqual(
+            eventsAfterMenuEntries,
+            eventsAfterPreload,
+            "A degraded menu should show its cached error instead of rescanning on every visit"
+        )
+
+        await model.loadStartupItemsIfNeeded(force: true)
+        await model.loadApplicationsIfNeeded(force: true)
+        let eventsAfterExplicitRetry = await recorder.events()
+        XCTAssertEqual(eventsAfterExplicitRetry.filter { $0 == "startup" }.count, 2)
+        XCTAssertEqual(eventsAfterExplicitRetry.filter { $0 == "applications" }.count, 2)
+    }
+
+    @MainActor
+    func testStartupReadinessWaitsForEveryRequiredPreloadStage() async {
+        let applications = GatedApplicationProvider()
+        let model = AppModel(
+            applicationProvider: applications,
+            startupPreloadSchedule: .immediate
+        )
+        model.startMonitoring()
+        defer { model.stopMonitoring() }
+
+        let didStartApplications = await applications.waitUntilStarted()
+        XCTAssertTrue(didStartApplications)
+        XCTAssertEqual(model.startupPreloadStatus.phase, .loading)
+        XCTAssertEqual(model.startupPreloadStatus.activeStage, .applications)
+        XCTAssertTrue(model.startupPreloadStatus.completedStages.contains(.telemetry))
+        XCTAssertTrue(model.startupPreloadStatus.completedStages.contains(.startupItems))
+        XCTAssertFalse(model.startupPreloadStatus.completedStages.contains(.applications))
+
+        await applications.finish()
+        let clock = ContinuousClock()
+        let deadline = clock.now.advanced(by: .seconds(1))
+        while model.startupPreloadStatus.phase != .ready, clock.now < deadline {
+            try? await Task.sleep(for: .milliseconds(2))
+        }
+
+        XCTAssertEqual(model.startupPreloadStatus.phase, .ready)
+        XCTAssertEqual(
+            model.startupPreloadStatus.completedStages,
+            Set(StartupPreloadStage.allCases)
+        )
     }
 
     @MainActor
@@ -197,8 +390,7 @@ final class AppModelLifecycleTests: XCTestCase {
 
         let events = await recorder.events()
         XCTAssertTrue(events.isEmpty)
-        XCTAssertGreaterThan(StartupPreloadSchedule.standard.initialDelay, .zero)
-        XCTAssertGreaterThan(StartupPreloadSchedule.standard.delayBetweenBatches, .zero)
+        XCTAssertEqual(StartupPreloadSchedule.standard, .immediate)
     }
 
     func testDashboardHistorySkipsHighFrequencySamplesAndHasFixedCapacity() {
@@ -351,6 +543,24 @@ private struct OrderedApplicationProvider: ApplicationProviding {
     }
 }
 
+private struct OrderedFailingStartupProvider: StartupItemProviding {
+    let recorder: PreloadOrderRecorder
+
+    func items() async throws -> [StartupItem] {
+        await recorder.record("startup")
+        throw TestProviderError(message: "startup preload failed")
+    }
+}
+
+private struct OrderedFailingApplicationProvider: ApplicationProviding {
+    let recorder: PreloadOrderRecorder
+
+    func applications() async throws -> [ApplicationCandidate] {
+        await recorder.record("applications")
+        throw TestProviderError(message: "application preload failed")
+    }
+}
+
 private struct OrderedStorageHealthProvider: StorageHealthProviding {
     let recorder: PreloadOrderRecorder
 
@@ -418,6 +628,32 @@ private actor GatedMetricsProvider: SystemMetricsProviding {
 
     func finish(with snapshot: SystemSnapshot) {
         continuation?.resume(returning: snapshot)
+        continuation = nil
+    }
+}
+
+private actor GatedApplicationProvider: ApplicationProviding {
+    private var started = false
+    private var continuation: CheckedContinuation<[ApplicationCandidate], Never>?
+
+    func applications() async throws -> [ApplicationCandidate] {
+        started = true
+        return await withCheckedContinuation { continuation in
+            self.continuation = continuation
+        }
+    }
+
+    func waitUntilStarted(timeout: Duration = .seconds(1)) async -> Bool {
+        let clock = ContinuousClock()
+        let deadline = clock.now.advanced(by: timeout)
+        while !started, clock.now < deadline {
+            try? await Task.sleep(for: .milliseconds(2))
+        }
+        return started
+    }
+
+    func finish() {
+        continuation?.resume(returning: [])
         continuation = nil
     }
 }

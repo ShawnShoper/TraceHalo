@@ -16,8 +16,7 @@ public enum RuntimeSafetyMode: String, Sendable {
         environment: [String: String]
     ) -> RuntimeSafetyMode {
         if arguments.contains("--safe-test-mode")
-            || environment["TRACEHALO_SAFE_TEST_MODE"] == "1"
-            || environment[TraceHaloLegacyIdentifiers.safeTestEnvironmentKey] == "1" {
+            || environment["TRACEHALO_SAFE_TEST_MODE"] == "1" {
             return .safeTest
         }
         return .live

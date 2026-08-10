@@ -28,9 +28,8 @@ TraceHalo 已形成可编译、可运行、可打包的原生 macOS 应用。产
 | 设置 | 主题、温度单位、刷新频率、电池模式、菜单栏、登录时启动、打开页面 | 本地持久化；安全测试模式拒绝登录启动变更 |
 
 应用发布标识为 `com.tseai.tracehalo`，只读传感器服务为
-`com.tseai.tracehalo.sensor-helper`。从旧标识 `app.systemscope.desktop` 首次升级时，
-只迁移新域尚未设置的白名单偏好且不清理旧域；登录时启动由 macOS 按应用身份
-管理，升级后可能需要用户手动重新启用，应用不会自动注销旧注册。
+`com.tseai.tracehalo.sensor-helper`。应用仅使用当前 TraceHalo 偏好域；登录时启动由
+macOS 按应用身份管理，应用不会在启动或测试过程中自动修改系统服务注册。
 
 ## 3. 明确排除
 
@@ -87,7 +86,7 @@ make test
 - 同一 `AppModel` 连续发布两组 CPU、内存和温度数据后，状态条在内存中实时重绘且固有宽度不抖动；
 - 关闭最后一个主窗口不会终止应用；在没有任何 Window/View 的条件下，`startMonitoring` 仍会在超时门禁内发布至少两轮顺序快照，并只用 `stopMonitoring` 收尾；
 - 菜单栏 CPU、内存、GPU、存储、网络、风扇、传感器和电池八个入口分别展开对应右侧详情，右侧区域的八份内存位图必须全部独立；
-- 旧版持久化配置中的 `SystemScope` 快捷项自动迁移为 `TraceHalo`；
+- TraceHalo 快捷项使用 `traceHalo` 编码并以 `TraceHalo` 显示；
 - GPU registry 解码、SMC ABI、真实值解码、双风扇、权限分类、IORegistry HID 元数据分组、Apple 驱动电量/充电三态、缓存与 stale transport 重建；
 - 固定只读 helper payload 的编解码与缺失值边界；
 - 温度、容量、百分比和格式化边界；

@@ -69,7 +69,7 @@ final class ConfigurationTests: XCTestCase {
         XCTAssertTrue(items.allSatisfy(\.isVisible))
     }
 
-    func testQuickActionWritesTraceHaloAndReadsTheLegacyProductValue() throws {
+    func testQuickActionReadsAndWritesTraceHaloValue() throws {
         XCTAssertEqual(
             MonitorQuickAction.allCases.map(\.rawValue),
             [
@@ -82,11 +82,11 @@ final class ConfigurationTests: XCTestCase {
             ]
         )
 
-        let legacyValue = try JSONDecoder().decode(
+        let decodedValue = try JSONDecoder().decode(
             MonitorQuickAction.self,
-            from: Data(#""systemScope""#.utf8)
+            from: Data(#""traceHalo""#.utf8)
         )
-        XCTAssertEqual(legacyValue, .traceHalo)
+        XCTAssertEqual(decodedValue, .traceHalo)
         XCTAssertEqual(
             String(decoding: try JSONEncoder().encode(MonitorQuickAction.traceHalo), as: UTF8.self),
             #""traceHalo""#
@@ -155,18 +155,18 @@ final class ConfigurationTests: XCTestCase {
         XCTAssertFalse(decoded.showsStatusBarIcon)
     }
 
-    func testLegacyProductQuickItemTitleMigratesToTraceHalo() throws {
-        let legacyConfiguration = MonitorConfiguration(
+    func testTraceHaloQuickItemTitleRoundTrips() throws {
+        let configuration = MonitorConfiguration(
             panels: MonitorConfiguration.standard.panels,
             quickItems: [
                 MonitorQuickItem(
                     action: .traceHalo,
-                    title: "SystemScope",
+                    title: "TraceHalo",
                     systemImage: "scope"
                 )
             ]
         )
-        let data = try JSONEncoder().encode(legacyConfiguration)
+        let data = try JSONEncoder().encode(configuration)
 
         let decoded = try JSONDecoder().decode(MonitorConfiguration.self, from: data)
 

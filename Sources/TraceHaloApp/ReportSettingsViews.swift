@@ -268,223 +268,642 @@ struct ReportView: View {
     }
 }
 
+enum SettingsUsageMode: String, CaseIterable, Identifiable {
+    case powerSaving
+    case balanced
+    case realtime
+    case custom
+
+    var id: String { rawValue }
+}
+
+enum SettingsBatteryCapability: Equatable {
+    case checking
+    case available
+    case unavailable
+}
+
+struct SettingsUsageModeConfiguration: Equatable {
+    let refreshInterval: Double
+    let pauseWhenOnBattery: Bool
+}
+
+enum SettingsUsageModePolicy {
+    static func capability(
+        hasLoadedSnapshot: Bool,
+        hasBattery: Bool
+    ) -> SettingsBatteryCapability {
+        guard hasLoadedSnapshot else { return .checking }
+        return hasBattery ? .available : .unavailable
+    }
+
+    static func availableModes(
+        for capability: SettingsBatteryCapability
+    ) -> [SettingsUsageMode] {
+        capability == .unavailable
+            ? [.balanced, .realtime]
+            : [.powerSaving, .balanced, .realtime]
+    }
+
+    static func configuration(
+        for mode: SettingsUsageMode
+    ) -> SettingsUsageModeConfiguration {
+        switch mode {
+        case .powerSaving:
+            SettingsUsageModeConfiguration(
+                refreshInterval: 5,
+                pauseWhenOnBattery: true
+            )
+        case .balanced:
+            SettingsUsageModeConfiguration(
+                refreshInterval: 2,
+                pauseWhenOnBattery: true
+            )
+        case .realtime:
+            SettingsUsageModeConfiguration(
+                refreshInterval: 1,
+                pauseWhenOnBattery: false
+            )
+        case .custom:
+            // `custom` is a presentation-only result for values chosen in
+            // Advanced Settings. It is never offered as a usage-mode card.
+            SettingsUsageModeConfiguration(
+                refreshInterval: 2,
+                pauseWhenOnBattery: true
+            )
+        }
+    }
+
+    static func selection(
+        refreshInterval: Double,
+        pauseWhenOnBattery: Bool,
+        capability: SettingsBatteryCapability
+    ) -> SettingsUsageMode {
+        if matches(refreshInterval, 1), !pauseWhenOnBattery {
+            return .realtime
+        }
+        if matches(refreshInterval, 2), pauseWhenOnBattery {
+            return .balanced
+        }
+        if matches(refreshInterval, 5), pauseWhenOnBattery {
+            return capability == .unavailable ? .custom : .powerSaving
+        }
+
+        if refreshInterval <= 1.5, !pauseWhenOnBattery {
+            return .realtime
+        }
+        if capability != .unavailable,
+           refreshInterval >= 4,
+           pauseWhenOnBattery {
+            return .powerSaving
+        }
+        return .custom
+    }
+
+    private static func matches(_ lhs: Double, _ rhs: Double) -> Bool {
+        abs(lhs - rhs) < 0.001
+    }
+}
+
+enum SettingsHistoryRetentionPresentation {
+    static func retention(storedDays: Int) -> DashboardHistoryRetention {
+        DashboardHistoryRetention(rawValue: storedDays) ?? .defaultValue
+    }
+
+    static func title(
+        retention: DashboardHistoryRetention,
+        locale: Locale
+    ) -> String {
+        let format = AppLocalization.string(
+            "settings.historyRetention.days.format",
+            defaultValue: "%ld days",
+            locale: locale
+        )
+        return String(
+            format: format,
+            locale: locale,
+            retention.rawValue
+        )
+    }
+}
+
+private enum SettingsPresentedSheet: String, Identifiable {
+    case diagnostics
+    case advanced
+    case about
+
+    var id: String { rawValue }
+}
+
+private enum SettingsPresentedAlert: Identifiable {
+    case reset
+    case error(String)
+
+    var id: String {
+        switch self {
+        case .reset: "reset"
+        case let .error(message): "error-\(message)"
+        }
+    }
+}
+
 struct SettingsView: View {
     @Environment(AppModel.self) private var model
     @Environment(\.locale) private var locale
     @AppStorage("launchDestination") private var launchDestination = AppDestination.dashboard.rawValue
     @AppStorage("appearanceMode") private var appearanceMode = "system"
+    @AppStorage(DashboardHistoryRetention.storageKey)
+    private var historyRetentionDays = DashboardHistoryRetention.defaultValue.rawValue
     @AppStorage(AppLanguagePreference.storageKey)
     private var appLanguagePreference = AppLanguagePreference.defaultValue.rawValue
     @State private var launchAtLogin = false
-    @State private var settingsMessage: String?
+    @State private var presentedSheet: SettingsPresentedSheet?
+    @State private var presentedAlert: SettingsPresentedAlert?
 
     var isStandalone = false
 
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 20) {
-                if !isStandalone {
-                    PageHeader(
-                        title: localized("设置"),
-                        subtitle: localized("调整采样、显示、菜单栏和隐私偏好"),
-                        symbol: "gearshape"
-                    )
-                } else {
-                    Text(localized("TraceHalo 设置"))
-                        .font(.title2.weight(.semibold))
-                }
-
-                settingsSection(localized("监测"), symbol: "waveform.path.ecg") {
-                    Toggle(
-                        localized("在菜单栏显示摘要"),
-                        isOn: model.binding(\.showMenuBarSummary)
-                    )
-                    settingsDivider
-                    Toggle(
-                        localized("登录时启动 TraceHalo"),
-                        isOn: Binding(
-                            get: { launchAtLogin },
-                            set: { updateLaunchAtLogin($0) }
-                        )
-                    )
-                    settingsDivider
-                    Picker(localized("刷新间隔"), selection: model.binding(\.refreshInterval)) {
-                        Text(localized("1 秒")).tag(1.0)
-                        Text(localized("2 秒")).tag(2.0)
-                        Text(localized("5 秒")).tag(5.0)
-                        Text(localized("10 秒")).tag(10.0)
-                    }
-                    .pickerStyle(.menu)
-                    settingsDivider
-                    Toggle(
-                        localized("使用电池供电时降低采样频率"),
-                        isOn: model.binding(\.pauseWhenOnBattery)
-                    )
-                }
-
-                settingsSection(localized("显示"), symbol: "paintbrush") {
-                    Picker(
-                        localized("应用语言"),
-                        selection: Binding(
-                            get: {
-                                SettingsLanguagePickerPolicy.selection(
-                                    storedValue: appLanguagePreference
-                                )
-                            },
-                            set: { appLanguagePreference = $0 }
-                        )
-                    ) {
-                        ForEach(SettingsLanguagePickerPolicy.options, id: \.rawValue) { preference in
-                            languageOption(preference)
-                                .tag(preference.rawValue)
-                        }
-                    }
-                    .pickerStyle(.menu)
-                    if SettingsLanguagePickerPolicy.selection(
-                        storedValue: appLanguagePreference
-                    ) == AppLanguagePreference.system.rawValue {
-                        Text(localized("不支持的系统语言将使用英文"))
-                            .font(.caption)
-                            .foregroundStyle(CalmTheme.secondaryText)
-                    }
-                    settingsDivider
-                    Picker(localized("外观"), selection: $appearanceMode) {
-                        Text(localized("跟随系统")).tag("system")
-                        Text(localized("浅色")).tag("light")
-                        Text(localized("深色")).tag("dark")
-                    }
-                    .pickerStyle(.menu)
-                    settingsDivider
-                    Picker(localized("温度单位"), selection: model.binding(\.temperatureUnit)) {
-                        Text(localized("摄氏度（°C）")).tag(TemperatureUnit.celsius)
-                        Text(localized("华氏度（°F）")).tag(TemperatureUnit.fahrenheit)
-                        Text(localized("开尔文（K）")).tag(TemperatureUnit.kelvin)
-                    }
-                    .pickerStyle(.menu)
-                    settingsDivider
-                    Picker(localized("打开时显示"), selection: $launchDestination) {
-                        Text(localized("系统概览")).tag(AppDestination.dashboard.rawValue)
-                        Text(localized("监视器")).tag(AppDestination.monitor.rawValue)
-                        Text(localized("上次页面")).tag("last")
-                    }
-                    .pickerStyle(.menu)
-                }
-
-                settingsSection(localized("报告与隐私"), symbol: "hand.raised") {
-                    Toggle(
-                        localized("在报告中包含进程名称"),
-                        isOn: model.binding(\.includeProcessNamesInReport)
-                    )
-                    settingsDivider
-                    Toggle(
-                        localized("在报告中包含卷名称"),
-                        isOn: model.binding(\.includeVolumeNamesInReport)
-                    )
-                    settingsDivider
-                    LabeledContent(localized("敏感标识")) {
-                        Text(localized("默认隐藏"))
-                            .foregroundStyle(CalmTheme.secondaryText)
-                    }
-                    settingsDivider
-                    LabeledContent(localized("数据处理")) {
-                        Text(localized("仅在本机"))
-                            .foregroundStyle(CalmTheme.secondaryText)
-                    }
-                }
-
-                settingsSection(localized("数据状态"), symbol: "cylinder") {
-                    LabeledContent(localized("当前来源")) {
-                        StatusPill(
-                            text: ReportSettingsLocalization.dataSourceTitle(
-                                model.dataSource,
-                                locale: locale
-                            ),
-                            color: model.dataSource == .live ? CalmTheme.mint : CalmTheme.cyan
-                        )
-                    }
-                    settingsDivider
-                    LabeledContent(localized("上次更新")) {
-                        Text(
-                            ReportSettingsLocalization.updateTimestamp(
-                                model.snapshot.capturedAt,
-                                locale: locale
-                            )
-                        )
-                        .foregroundStyle(CalmTheme.secondaryText)
-                    }
-                    settingsDivider
-                    HStack {
-                        Text(localized("刷新实时状态"))
-                        Spacer()
-                        Button(localized("刷新")) { Task { await model.refreshAll() } }
-                            .buttonStyle(CalmButtonStyle())
-                            .disabled(model.isRefreshing)
-                    }
-                }
-
-                settingsSection(localized("关于"), symbol: "info.circle") {
-                    LabeledContent(localized("应用")) {
-                        Text("TraceHalo — System Monitor for Mac")
-                    }
-                    settingsDivider
-                    LabeledContent(localized("运行模式")) {
-                        Text(
-                            ReportSettingsLocalization.runtimeModeTitle(
-                                isSafeTest: RuntimeSafetyMode.current == .safeTest,
-                                locale: locale
-                            )
-                        )
-                    }
-                    settingsDivider
-                    Text(localized("一款原创 macOS 系统状态工具。界面和数据层分离，可在演示数据与本机只读服务之间切换。"))
-                        .font(.caption)
-                        .foregroundStyle(CalmTheme.secondaryText)
-                }
+            VStack(alignment: .leading, spacing: 14) {
+                settingsHeader
+                usageModeSection
+                settingsColumns
             }
-            .padding(isStandalone ? 20 : 24)
-            .frame(maxWidth: 850, alignment: .leading)
-            .frame(maxWidth: .infinity, alignment: .topLeading)
+            .padding(pageInsets)
+            .frame(maxWidth: .infinity, alignment: .top)
         }
         .calmPage()
+        .tint(CalmTheme.accent)
         .navigationTitle(localized("设置"))
-        .onAppear { launchAtLogin = LaunchAtLoginController.isEnabled }
-        .alert(
-            localized("设置未更改"),
-            isPresented: Binding(
-                get: { settingsMessage != nil },
-                set: { if !$0 { settingsMessage = nil } }
-            )
-        ) {
-            Button(localized("知道了")) { settingsMessage = nil }
-        } message: {
-            Text(settingsMessage ?? "")
+        .onAppear {
+            launchAtLogin = LaunchAtLoginController.isEnabled
+            normalizeHistoryRetentionDays()
+        }
+        .onChange(of: historyRetentionDays) { _, days in
+            let normalized = SettingsHistoryRetentionPresentation.retention(
+                storedDays: days
+            ).rawValue
+            guard normalized == days else {
+                historyRetentionDays = normalized
+                return
+            }
+            model.updateDashboardHistoryRetentionDays(days)
+        }
+        .sheet(item: $presentedSheet) { sheet in
+            Group {
+                switch sheet {
+                case .diagnostics:
+                    SettingsDiagnosticsSheet()
+                case .advanced:
+                    SettingsAdvancedSheet()
+                case .about:
+                    SettingsAboutSheet()
+                }
+            }
+            .environment(model)
+            .traceHaloLanguageEnvironment()
+        }
+        .alert(item: $presentedAlert) { alert in
+            switch alert {
+            case .reset:
+                Alert(
+                    title: Text(localized("settings.reset.confirm.title")),
+                    message: Text(localized("settings.reset.confirm.message")),
+                    primaryButton: .destructive(
+                        Text(localized("settings.reset.confirm.action")),
+                        action: restoreDefaults
+                    ),
+                    secondaryButton: .cancel(
+                        Text(localized("settings.reset.cancel"))
+                    )
+                )
+            case let .error(message):
+                Alert(
+                    title: Text(localized("设置未更改")),
+                    message: Text(message),
+                    dismissButton: .default(Text(localized("知道了")))
+                )
+            }
         }
     }
 
-    private var settingsDivider: some View {
-        CalmDivider()
-            .padding(.vertical, 4)
+    private var settingsHeader: some View {
+        HStack(spacing: 29) {
+            Image(systemName: "gearshape")
+                .font(.system(size: 42, weight: .regular))
+                .foregroundStyle(CalmTheme.accent)
+                .frame(width: 58, height: 58)
+
+            VStack(alignment: .leading, spacing: 4) {
+                Text(localized("设置"))
+                    .font(.system(size: 26, weight: .bold))
+                Text(localized("settings.subtitle"))
+                    .font(.system(size: 14))
+                    .foregroundStyle(CalmTheme.secondaryText)
+            }
+
+            Spacer(minLength: 16)
+
+            Button(localized("settings.reset")) {
+                presentedAlert = .reset
+            }
+            .buttonStyle(.plain)
+            .font(.system(size: 14, weight: .medium))
+            .foregroundStyle(CalmTheme.accent)
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 2)
+        .padding(.bottom, isStandalone ? 7 : 0)
+    }
+
+    private var usageModeSection: some View {
+        SettingsPanel(
+            title: localized("settings.usage.title"),
+            contentSpacing: 14,
+            contentPadding: 20
+        ) {
+            ViewThatFits(in: .horizontal) {
+                HStack(spacing: 12) {
+                    usageModeCards(minimumWidth: 210)
+                }
+                VStack(spacing: 10) {
+                    usageModeCards(minimumWidth: 0)
+                }
+            }
+
+            SettingsInlineInfo(
+                symbol: "info.circle",
+                text: usageModeSummary,
+                color: CalmTheme.secondaryText
+            )
+        }
+    }
+
+    @ViewBuilder
+    private func usageModeCards(minimumWidth: CGFloat) -> some View {
+        ForEach(availableUsageModes) { mode in
+            SettingsUsageModeCard(
+                mode: mode,
+                title: usageModeTitle(mode),
+                subtitle: usageModeSubtitle(mode),
+                symbol: usageModeSymbol(mode),
+                isSelected: selectedUsageMode == mode,
+                recommendedText: mode == .balanced
+                    ? localized("settings.usage.recommended")
+                    : nil,
+                action: { applyUsageMode(mode) }
+            )
+            .frame(minWidth: minimumWidth, maxWidth: .infinity)
+        }
+    }
+
+    private var settingsColumns: some View {
+        ViewThatFits(in: .horizontal) {
+            HStack(alignment: .top, spacing: 14) {
+                VStack(spacing: 14) {
+                    startupAndMenuBarPanel
+                    displayAndLanguagePanel
+                }
+                .frame(minWidth: 430, maxWidth: .infinity)
+
+                VStack(spacing: 14) {
+                    privacyPanel
+                    morePanel
+                }
+                .frame(minWidth: 430, maxWidth: .infinity)
+            }
+
+            VStack(spacing: 14) {
+                startupAndMenuBarPanel
+                privacyPanel
+                displayAndLanguagePanel
+                morePanel
+            }
+        }
+    }
+
+    private var startupAndMenuBarPanel: some View {
+        SettingsPanel(title: localized("settings.startup.title")) {
+            SettingsToggleRow(
+                symbol: "menubar.rectangle",
+                title: localized("settings.menuBar.title"),
+                subtitle: localized("settings.menuBar.subtitle"),
+                minimumHeight: 68,
+                isOn: model.binding(\.showMenuBarSummary)
+            )
+            SettingsRowDivider()
+            SettingsToggleRow(
+                symbol: "person.crop.circle",
+                title: localized("settings.login.title"),
+                subtitle: localized("settings.login.subtitle"),
+                minimumHeight: 68,
+                isOn: Binding(
+                    get: { launchAtLogin },
+                    set: { updateLaunchAtLogin($0) }
+                )
+            )
+        }
+    }
+
+    private var privacyPanel: some View {
+        SettingsPanel(title: localized("settings.privacy.title")) {
+            SettingsToggleRow(
+                symbol: "list.bullet.rectangle",
+                title: localized("settings.report.processNames"),
+                minimumHeight: 52,
+                isOn: model.binding(\.includeProcessNamesInReport)
+            )
+            SettingsRowDivider()
+            SettingsToggleRow(
+                symbol: "internaldrive",
+                title: localized("settings.report.volumeNames"),
+                minimumHeight: 52,
+                isOn: model.binding(\.includeVolumeNamesInReport)
+            )
+            SettingsInlineInfo(
+                symbol: "lock.fill",
+                text: localized("settings.privacy.localOnly"),
+                color: CalmTheme.mint
+            )
+        }
+    }
+
+    private var displayAndLanguagePanel: some View {
+        SettingsPanel(title: localized("settings.display.title")) {
+            VStack(spacing: 0) {
+                SettingsSelectionRow(
+                    symbol: "globe",
+                    title: localized("应用语言"),
+                    value: languageTitle,
+                    minimumHeight: 66,
+                    selection: $appLanguagePreference,
+                    options: SettingsLanguagePickerPolicy.options.map { preference in
+                        SettingsSelectionOption(
+                            value: preference.rawValue,
+                            title: SettingsLanguagePickerPolicy.title(
+                                for: preference,
+                                locale: locale
+                            )
+                        )
+                    }
+                )
+
+                SettingsRowDivider()
+
+                SettingsSelectionRow(
+                    symbol: "paintbrush",
+                    title: localized("外观"),
+                    value: appearanceTitle,
+                    minimumHeight: 66,
+                    selection: $appearanceMode,
+                    options: [
+                        SettingsSelectionOption(value: "system", title: localized("跟随系统")),
+                        SettingsSelectionOption(value: "light", title: localized("浅色")),
+                        SettingsSelectionOption(value: "dark", title: localized("深色")),
+                    ]
+                )
+
+                SettingsRowDivider()
+
+                SettingsSelectionRow(
+                    symbol: "thermometer.medium",
+                    title: localized("温度单位"),
+                    value: temperatureTitle,
+                    minimumHeight: 66,
+                    selection: model.binding(\.temperatureUnit),
+                    options: [
+                        SettingsSelectionOption(value: .celsius, title: localized("摄氏度（°C）")),
+                        SettingsSelectionOption(value: .fahrenheit, title: localized("华氏度（°F）")),
+                        SettingsSelectionOption(value: .kelvin, title: localized("开尔文（K）")),
+                    ]
+                )
+            }
+
+            if SettingsLanguagePickerPolicy.selection(
+                storedValue: appLanguagePreference
+            ) == AppLanguagePreference.system.rawValue {
+                Text(localized("不支持的系统语言将使用英文"))
+                    .font(.caption)
+                    .foregroundStyle(CalmTheme.tertiaryText)
+            }
+        }
+    }
+
+    private var morePanel: some View {
+        SettingsPanel(title: localized("settings.more.title")) {
+            VStack(spacing: 0) {
+                SettingsSelectionRow(
+                    symbol: "rectangle.split.3x1",
+                    title: localized("settings.launchDestination.title"),
+                    value: launchDestinationTitle,
+                    minimumHeight: 34,
+                    selection: $launchDestination,
+                    options: [
+                        SettingsSelectionOption(
+                            value: AppDestination.dashboard.rawValue,
+                            title: localized("系统概览")
+                        ),
+                        SettingsSelectionOption(
+                            value: AppDestination.monitor.rawValue,
+                            title: localized("监视器")
+                        ),
+                        SettingsSelectionOption(value: "last", title: localized("上次页面")),
+                    ]
+                )
+                SettingsRowDivider()
+                SettingsSelectionRow(
+                    symbol: "clock.arrow.circlepath",
+                    title: localized("settings.historyRetention.title"),
+                    value: SettingsHistoryRetentionPresentation.title(
+                        retention: historyRetention,
+                        locale: locale
+                    ),
+                    minimumHeight: 34,
+                    selection: $historyRetentionDays,
+                    options: DashboardHistoryRetention.allCases.map { retention in
+                        SettingsSelectionOption(
+                            value: retention.rawValue,
+                            title: SettingsHistoryRetentionPresentation.title(
+                                retention: retention,
+                                locale: locale
+                            )
+                        )
+                    }
+                )
+                SettingsRowDivider()
+                settingsSheetButton(
+                    .diagnostics,
+                    symbol: "wrench.and.screwdriver",
+                    title: localized("settings.diagnostics.title"),
+                    minimumHeight: 34
+                )
+                SettingsRowDivider()
+                settingsSheetButton(
+                    .advanced,
+                    symbol: "gearshape",
+                    title: localized("settings.advanced.title"),
+                    minimumHeight: 34
+                )
+                SettingsRowDivider()
+                settingsSheetButton(
+                    .about,
+                    symbol: "info.circle",
+                    title: localized("settings.about.title"),
+                    minimumHeight: 34
+                )
+            }
+        }
+    }
+
+    private var batteryCapability: SettingsBatteryCapability {
+        SettingsUsageModePolicy.capability(
+            hasLoadedSnapshot: model.hasLoadedSnapshot,
+            hasBattery: PowerPresentationPolicy.isAvailable(in: model.snapshot)
+        )
+    }
+
+    private var pageInsets: EdgeInsets {
+        isStandalone
+            ? EdgeInsets(top: 17, leading: 40, bottom: 32, trailing: 40)
+            : EdgeInsets(top: 24, leading: 24, bottom: 24, trailing: 24)
+    }
+
+    private var availableUsageModes: [SettingsUsageMode] {
+        SettingsUsageModePolicy.availableModes(for: batteryCapability)
+    }
+
+    private var selectedUsageMode: SettingsUsageMode {
+        SettingsUsageModePolicy.selection(
+            refreshInterval: model.refreshInterval,
+            pauseWhenOnBattery: model.pauseWhenOnBattery,
+            capability: batteryCapability
+        )
+    }
+
+    private var historyRetention: DashboardHistoryRetention {
+        SettingsHistoryRetentionPresentation.retention(
+            storedDays: historyRetentionDays
+        )
+    }
+
+    private var usageModeSummary: String {
+        let seconds = model.refreshInterval.formatted(
+            .number.precision(.fractionLength(0...1)).locale(locale)
+        )
+        let key = batteryCapability != .unavailable && model.pauseWhenOnBattery
+            ? "settings.usage.summary.battery"
+            : "settings.usage.summary.standard"
+        return String(format: localized(key), locale: locale, seconds)
+    }
+
+    private var languageTitle: String {
+        let preference = AppLanguagePreference.storedPreference(
+            from: appLanguagePreference
+        )
+        return SettingsLanguagePickerPolicy.title(for: preference, locale: locale)
+    }
+
+    private var appearanceTitle: String {
+        switch appearanceMode {
+        case "light": localized("浅色")
+        case "dark": localized("深色")
+        default: localized("跟随系统")
+        }
+    }
+
+    private var temperatureTitle: String {
+        switch model.temperatureUnit {
+        case .celsius: localized("摄氏度（°C）")
+        case .fahrenheit: localized("华氏度（°F）")
+        case .kelvin: localized("开尔文（K）")
+        }
+    }
+
+    private var launchDestinationTitle: String {
+        switch launchDestination {
+        case AppDestination.monitor.rawValue: localized("监视器")
+        case "last": localized("上次页面")
+        default: localized("系统概览")
+        }
     }
 
     private func localized(_ key: String) -> String {
         ReportSettingsLocalization.text(key, locale: locale)
     }
 
-    @ViewBuilder
-    private func languageOption(_ preference: AppLanguagePreference) -> some View {
-        Text(SettingsLanguagePickerPolicy.title(for: preference, locale: locale))
+    private func usageModeTitle(_ mode: SettingsUsageMode) -> String {
+        switch mode {
+        case .powerSaving: localized("settings.usage.powerSaving.title")
+        case .balanced: localized("settings.usage.balanced.title")
+        case .realtime: localized("settings.usage.realtime.title")
+        case .custom: localized("settings.usage.custom.title")
+        }
     }
 
-    private func settingsSection<Content: View>(
-        _ title: String,
-        symbol: String,
-        @ViewBuilder content: () -> Content
-    ) -> some View {
-        VStack(alignment: .leading, spacing: 12) {
-            SectionTitle(title: title, symbol: symbol)
-            content()
+    private func usageModeSubtitle(_ mode: SettingsUsageMode) -> String {
+        switch mode {
+        case .powerSaving: localized("settings.usage.powerSaving.subtitle")
+        case .balanced: localized("settings.usage.balanced.subtitle")
+        case .realtime: localized("settings.usage.realtime.subtitle")
+        case .custom: localized("settings.usage.custom.subtitle")
         }
-        .calmCard()
+    }
+
+    private func usageModeSymbol(_ mode: SettingsUsageMode) -> String {
+        switch mode {
+        case .powerSaving: "battery.75percent"
+        case .balanced: "scalemass"
+        case .realtime: "waveform.path.ecg"
+        case .custom: "slider.horizontal.3"
+        }
+    }
+
+    private func settingsSheetButton(
+        _ sheet: SettingsPresentedSheet,
+        symbol: String,
+        title: String,
+        minimumHeight: CGFloat = 34
+    ) -> some View {
+        Button {
+            presentedSheet = sheet
+        } label: {
+            SettingsValueRow(
+                symbol: symbol,
+                title: title,
+                value: nil,
+                minimumHeight: minimumHeight
+            )
+        }
+        .buttonStyle(.plain)
+    }
+
+    private func applyUsageMode(_ mode: SettingsUsageMode) {
+        guard availableUsageModes.contains(mode) else { return }
+        let configuration = SettingsUsageModePolicy.configuration(for: mode)
+        model.refreshInterval = configuration.refreshInterval
+        model.pauseWhenOnBattery = configuration.pauseWhenOnBattery
+    }
+
+    private func normalizeHistoryRetentionDays() {
+        historyRetentionDays = historyRetention.rawValue
+    }
+
+    private func restoreDefaults() {
+        applyUsageMode(.balanced)
+        model.showMenuBarSummary = true
+        model.includeProcessNamesInReport = false
+        model.includeVolumeNamesInReport = false
+        model.temperatureUnit = .celsius
+        historyRetentionDays = DashboardHistoryRetention.defaultValue.rawValue
+        launchDestination = AppDestination.dashboard.rawValue
+        appearanceMode = "system"
+        appLanguagePreference = AppLanguagePreference.defaultValue.rawValue
+
+        guard LaunchAtLoginController.isEnabled else {
+            launchAtLogin = false
+            return
+        }
+        updateLaunchAtLogin(false)
     }
 
     @MainActor
@@ -494,8 +913,564 @@ struct SettingsView: View {
             launchAtLogin = LaunchAtLoginController.isEnabled
         } catch {
             launchAtLogin = LaunchAtLoginController.isEnabled
-            settingsMessage = error.localizedDescription
+            presentedAlert = .error(error.localizedDescription)
         }
+    }
+}
+
+private struct SettingsUsageModeCard: View {
+    let mode: SettingsUsageMode
+    let title: String
+    let subtitle: String
+    let symbol: String
+    let isSelected: Bool
+    let recommendedText: String?
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            VStack(spacing: 8) {
+                Image(systemName: symbol)
+                    .font(.system(size: 36, weight: .medium))
+                    .foregroundStyle(isSelected ? CalmTheme.accent : CalmTheme.secondaryText)
+                    .frame(height: 42)
+
+                HStack(spacing: 8) {
+                Text(title)
+                    .font(.system(size: 20, weight: .semibold))
+                    if let recommendedText {
+                        Text(recommendedText)
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(CalmTheme.mint)
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 4)
+                            .background(
+                                CalmTheme.mint.opacity(0.13),
+                                in: RoundedRectangle(cornerRadius: 6, style: .continuous)
+                            )
+                    }
+                }
+
+                Text(subtitle)
+                    .font(.system(size: 15))
+                    .foregroundStyle(CalmTheme.secondaryText)
+            }
+            .frame(maxWidth: .infinity, minHeight: 179)
+            .padding(.horizontal, 12)
+            .background(
+                isSelected ? CalmTheme.accent.opacity(0.075) : CalmTheme.surfaceRaised,
+                in: RoundedRectangle(cornerRadius: 11, style: .continuous)
+            )
+            .overlay {
+                RoundedRectangle(cornerRadius: 11, style: .continuous)
+                    .strokeBorder(
+                        isSelected ? CalmTheme.accent : CalmTheme.strongHairline,
+                        lineWidth: isSelected ? 1.4 : 0.8
+                    )
+            }
+            .overlay(alignment: .topTrailing) {
+                ZStack {
+                    Circle()
+                        .fill(isSelected ? CalmTheme.accent : .clear)
+                    Circle()
+                        .strokeBorder(
+                            isSelected ? CalmTheme.accent : CalmTheme.tertiaryText,
+                            lineWidth: 1.3
+                        )
+                    if isSelected {
+                        Image(systemName: "checkmark")
+                            .font(.system(size: 9, weight: .bold))
+                            .foregroundStyle(.white)
+                    }
+                }
+                .frame(width: 22, height: 22)
+                .padding(13)
+            }
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(title)
+        .accessibilityHint(subtitle)
+        .accessibilityAddTraits(isSelected ? .isSelected : [])
+    }
+}
+
+private struct SettingsPanel<Content: View>: View {
+    let title: String
+    let contentSpacing: CGFloat
+    let contentPadding: CGFloat
+    let content: Content
+
+    init(
+        title: String,
+        contentSpacing: CGFloat = 10,
+        contentPadding: CGFloat = 14,
+        @ViewBuilder content: () -> Content
+    ) {
+        self.title = title
+        self.contentSpacing = contentSpacing
+        self.contentPadding = contentPadding
+        self.content = content()
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: contentSpacing) {
+            Text(title)
+                .font(.system(size: 16.5, weight: .semibold))
+            content
+        }
+        .padding(contentPadding)
+        .background(
+            CalmTheme.surface.opacity(0.92),
+            in: RoundedRectangle(cornerRadius: 12, style: .continuous)
+        )
+        .overlay {
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .strokeBorder(CalmTheme.hairline, lineWidth: 0.8)
+        }
+    }
+}
+
+private struct SettingsToggleRow: View {
+    let symbol: String
+    let title: String
+    var subtitle: String?
+    let minimumHeight: CGFloat
+    @Binding var isOn: Bool
+
+    init(
+        symbol: String,
+        title: String,
+        subtitle: String? = nil,
+        minimumHeight: CGFloat = 42,
+        isOn: Binding<Bool>
+    ) {
+        self.symbol = symbol
+        self.title = title
+        self.subtitle = subtitle
+        self.minimumHeight = minimumHeight
+        _isOn = isOn
+    }
+
+    var body: some View {
+        HStack(spacing: 12) {
+            Image(systemName: symbol)
+                .font(.system(size: 21, weight: .medium))
+                .foregroundStyle(CalmTheme.accent)
+                .frame(width: 28)
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title)
+                    .font(.system(size: 15.5, weight: .medium))
+                if let subtitle {
+                    Text(subtitle)
+                        .font(.system(size: 13.5))
+                        .foregroundStyle(CalmTheme.secondaryText)
+                }
+            }
+
+            Spacer(minLength: 10)
+
+            Toggle("", isOn: $isOn)
+                .labelsHidden()
+                .toggleStyle(.switch)
+                .tint(CalmTheme.accent)
+        }
+        .frame(minHeight: minimumHeight)
+    }
+}
+
+private struct SettingsValueRow: View {
+    let symbol: String
+    let title: String
+    let value: String?
+    var minimumHeight: CGFloat = 34
+
+    var body: some View {
+        HStack(spacing: 12) {
+            Image(systemName: symbol)
+                .font(.system(size: 21, weight: .medium))
+                .foregroundStyle(CalmTheme.accent)
+                .frame(width: 28)
+
+            Text(title)
+                .font(.system(size: 15.5, weight: .medium))
+                .foregroundStyle(CalmTheme.primaryText)
+                .lineLimit(1)
+
+            Spacer(minLength: 12)
+
+            if let value {
+                Text(value)
+                    .font(.system(size: 15))
+                    .foregroundStyle(CalmTheme.secondaryText)
+                    .lineLimit(1)
+                    .layoutPriority(2)
+            }
+
+            Image(systemName: "chevron.right")
+                .font(.system(size: 11, weight: .semibold))
+                .foregroundStyle(CalmTheme.tertiaryText)
+        }
+        .contentShape(Rectangle())
+        .frame(maxWidth: .infinity, minHeight: minimumHeight, alignment: .leading)
+    }
+}
+
+private struct SettingsSelectionOption<Value: Hashable>: Identifiable {
+    let value: Value
+    let title: String
+
+    var id: Value { value }
+}
+
+/// A visible button owns the entire hit target and presents a conventional
+/// list of options. Avoiding a transparent `Menu` overlay keeps real mouse,
+/// keyboard, and accessibility activation on the same control.
+private struct SettingsSelectionRow<Value: Hashable>: View {
+    @Environment(\.locale) private var locale
+    let symbol: String
+    let title: String
+    let value: String
+    let minimumHeight: CGFloat
+    @Binding var selection: Value
+    let options: [SettingsSelectionOption<Value>]
+    @State private var isPresented = false
+
+    var body: some View {
+        Button {
+            isPresented.toggle()
+        } label: {
+            SettingsValueRow(
+                symbol: symbol,
+                title: title,
+                value: value,
+                minimumHeight: minimumHeight
+            )
+        }
+        .buttonStyle(.plain)
+        .frame(maxWidth: .infinity, minHeight: minimumHeight)
+        .accessibilityLabel(title)
+        .accessibilityValue(value)
+        .accessibilityHint(ReportSettingsLocalization.text(
+            "settings.selection.hint",
+            locale: locale
+        ))
+        .popover(isPresented: $isPresented, arrowEdge: .trailing) {
+            VStack(alignment: .leading, spacing: 6) {
+                Text(title)
+                    .font(.headline)
+                    .foregroundStyle(CalmTheme.primaryText)
+                    .padding(.horizontal, 8)
+                    .padding(.top, 4)
+
+                ForEach(options) { option in
+                    Button {
+                        selection = option.value
+                        isPresented = false
+                    } label: {
+                        HStack(spacing: 12) {
+                            Text(option.title)
+                                .foregroundStyle(CalmTheme.primaryText)
+                            Spacer(minLength: 24)
+                            if selection == option.value {
+                                Image(systemName: "checkmark")
+                                    .font(.system(size: 12, weight: .semibold))
+                                    .foregroundStyle(CalmTheme.accent)
+                            }
+                        }
+                        .contentShape(Rectangle())
+                        .padding(.horizontal, 10)
+                        .frame(minHeight: 34)
+                        .background(
+                            selection == option.value
+                                ? CalmTheme.accent.opacity(0.12)
+                                : Color.clear,
+                            in: RoundedRectangle(cornerRadius: 7, style: .continuous)
+                        )
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityValue(
+                        selection == option.value
+                            ? ReportSettingsLocalization.text(
+                                "settings.selection.selected",
+                                locale: locale
+                            )
+                            : ""
+                    )
+                }
+            }
+            .padding(10)
+            .frame(minWidth: 260)
+            .calmPage()
+        }
+    }
+}
+
+private struct SettingsRowDivider: View {
+    var body: some View {
+        Rectangle()
+            .fill(CalmTheme.hairline)
+            .frame(height: 1)
+    }
+}
+
+private struct SettingsInlineInfo: View {
+    let symbol: String
+    let text: String
+    let color: Color
+
+    var body: some View {
+        HStack(spacing: 10) {
+            Image(systemName: symbol)
+                .font(.system(size: 14, weight: .semibold))
+            Text(text)
+                .font(.system(size: 14, weight: .medium))
+                .fixedSize(horizontal: false, vertical: true)
+            Spacer(minLength: 0)
+        }
+        .foregroundStyle(color)
+        .padding(.horizontal, 12)
+        .padding(.vertical, 10)
+        .frame(minHeight: 52)
+        .background(
+            color.opacity(0.08),
+            in: RoundedRectangle(cornerRadius: 9, style: .continuous)
+        )
+        .overlay {
+            RoundedRectangle(cornerRadius: 9, style: .continuous)
+                .strokeBorder(color.opacity(0.35), lineWidth: 0.8)
+        }
+    }
+}
+
+private struct SettingsDetailContainer<Content: View>: View {
+    @Environment(\.dismiss) private var dismiss
+    @Environment(\.locale) private var locale
+    let title: String
+    let symbol: String
+    let content: Content
+
+    init(
+        title: String,
+        symbol: String,
+        @ViewBuilder content: () -> Content
+    ) {
+        self.title = title
+        self.symbol = symbol
+        self.content = content()
+    }
+
+    var body: some View {
+        NavigationStack {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 14) {
+                    HStack(spacing: 12) {
+                        Image(systemName: symbol)
+                            .font(.system(size: 28, weight: .medium))
+                            .foregroundStyle(CalmTheme.accent)
+                        Text(title)
+                            .font(.title2.weight(.bold))
+                    }
+                    content
+                }
+                .padding(22)
+            }
+            .calmPage()
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button(localized("settings.done")) { dismiss() }
+                }
+            }
+        }
+        .frame(width: 560, height: 430)
+    }
+
+    private func localized(_ key: String) -> String {
+        ReportSettingsLocalization.text(key, locale: locale)
+    }
+}
+
+private struct SettingsDiagnosticsSheet: View {
+    @Environment(AppModel.self) private var model
+    @Environment(\.locale) private var locale
+
+    var body: some View {
+        SettingsDetailContainer(
+            title: localized("settings.diagnostics.title"),
+            symbol: "wrench.and.screwdriver"
+        ) {
+            SettingsPanel(title: localized("settings.diagnostics.data.title")) {
+                sheetRow(
+                    localized("settings.diagnostics.source"),
+                    ReportSettingsLocalization.dataSourceTitle(model.dataSource, locale: locale)
+                )
+                SettingsRowDivider()
+                sheetRow(
+                    localized("settings.diagnostics.snapshot"),
+                    model.hasLoadedSnapshot
+                        ? localized("settings.diagnostics.loaded")
+                        : localized("settings.diagnostics.loading")
+                )
+                SettingsRowDivider()
+                sheetRow(
+                    localized("settings.diagnostics.updated"),
+                    ReportSettingsLocalization.updateTimestamp(
+                        model.snapshot.capturedAt,
+                        locale: locale
+                    )
+                )
+                SettingsRowDivider()
+                sheetRow(
+                    localized("settings.diagnostics.battery"),
+                    batteryStatus
+                )
+            }
+
+            Button {
+                Task { await model.refreshAll() }
+            } label: {
+                Label(
+                    model.isRefreshing
+                        ? localized("settings.diagnostics.refreshing")
+                        : localized("settings.diagnostics.refresh"),
+                    systemImage: "arrow.clockwise"
+                )
+            }
+            .buttonStyle(CalmButtonStyle(prominent: true))
+            .disabled(model.isRefreshing)
+        }
+    }
+
+    private var batteryStatus: String {
+        guard model.hasLoadedSnapshot else {
+            return localized("settings.diagnostics.loading")
+        }
+        return PowerPresentationPolicy.isAvailable(in: model.snapshot)
+            ? localized("settings.diagnostics.available")
+            : localized("settings.diagnostics.unavailable")
+    }
+
+    private func sheetRow(_ label: String, _ value: String) -> some View {
+        HStack(alignment: .firstTextBaseline) {
+            Text(label)
+            Spacer(minLength: 16)
+            Text(value)
+                .foregroundStyle(CalmTheme.secondaryText)
+                .multilineTextAlignment(.trailing)
+        }
+        .font(.callout)
+    }
+
+    private func localized(_ key: String) -> String {
+        ReportSettingsLocalization.text(key, locale: locale)
+    }
+}
+
+private struct SettingsAdvancedSheet: View {
+    @Environment(AppModel.self) private var model
+    @Environment(\.locale) private var locale
+
+    var body: some View {
+        SettingsDetailContainer(
+            title: localized("settings.advanced.title"),
+            symbol: "gearshape"
+        ) {
+            SettingsPanel(title: localized("settings.advanced.sampling.title")) {
+                Picker(
+                    localized("settings.advanced.refreshInterval"),
+                    selection: model.binding(\.refreshInterval)
+                ) {
+                    Text(localized("1 秒")).tag(1.0)
+                    Text(localized("2 秒")).tag(2.0)
+                    Text(localized("5 秒")).tag(5.0)
+                    Text(localized("10 秒")).tag(10.0)
+                }
+                .pickerStyle(.menu)
+
+                if showsBatteryOptions {
+                    SettingsRowDivider()
+                    Toggle(
+                        localized("settings.advanced.batteryThrottle"),
+                        isOn: model.binding(\.pauseWhenOnBattery)
+                    )
+                    .toggleStyle(.switch)
+                }
+            }
+
+            SettingsInlineInfo(
+                symbol: "info.circle",
+                text: localized("settings.advanced.description"),
+                color: CalmTheme.secondaryText
+            )
+        }
+    }
+
+    private var showsBatteryOptions: Bool {
+        !model.hasLoadedSnapshot
+            || PowerPresentationPolicy.isAvailable(in: model.snapshot)
+    }
+
+    private func localized(_ key: String) -> String {
+        ReportSettingsLocalization.text(key, locale: locale)
+    }
+}
+
+private struct SettingsAboutSheet: View {
+    @Environment(AppModel.self) private var model
+    @Environment(\.locale) private var locale
+
+    var body: some View {
+        SettingsDetailContainer(
+            title: localized("settings.about.title"),
+            symbol: "info.circle"
+        ) {
+            SettingsPanel(title: "TraceHalo") {
+                aboutRow(localized("settings.about.version"), version)
+                SettingsRowDivider()
+                aboutRow(localized("settings.about.build"), build)
+                SettingsRowDivider()
+                aboutRow(
+                    localized("settings.about.dataSource"),
+                    ReportSettingsLocalization.dataSourceTitle(model.dataSource, locale: locale)
+                )
+                SettingsRowDivider()
+                aboutRow(
+                    localized("运行模式"),
+                    ReportSettingsLocalization.runtimeModeTitle(
+                        isSafeTest: RuntimeSafetyMode.current == .safeTest,
+                        locale: locale
+                    )
+                )
+            }
+
+            Text(localized("settings.about.description"))
+                .font(.callout)
+                .foregroundStyle(CalmTheme.secondaryText)
+        }
+    }
+
+    private var version: String {
+        Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String
+            ?? "—"
+    }
+
+    private var build: String {
+        Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String
+            ?? "—"
+    }
+
+    private func aboutRow(_ label: String, _ value: String) -> some View {
+        HStack {
+            Text(label)
+            Spacer(minLength: 16)
+            Text(value)
+                .foregroundStyle(CalmTheme.secondaryText)
+        }
+        .font(.callout)
+    }
+
+    private func localized(_ key: String) -> String {
+        ReportSettingsLocalization.text(key, locale: locale)
     }
 }
 

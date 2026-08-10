@@ -35,7 +35,11 @@ enum UISnapshotCapture {
         }
     }
 
-    static func captureAll(model: AppModel, outputDirectory: URL) throws {
+    static func captureAll(
+        model: AppModel,
+        portableSettingsModel: AppModel,
+        outputDirectory: URL
+    ) throws {
         try verifyMenuBarIntrinsicSize(model: model, initialSection: nil)
         for section in MenuBarDashboardSection.referenceOrder {
             try verifyMenuBarIntrinsicSize(model: model, initialSection: section)
@@ -50,6 +54,7 @@ enum UISnapshotCapture {
         let pageSize = CGSize(width: 1_220, height: 790)
         let monitorReferenceSize = CGSize(width: 1_558, height: 1_010)
         let storageReferenceSize = CGSize(width: 1_558, height: 1_010)
+        let settingsReferenceSize = CGSize(width: 1_558, height: 1_010)
         var targets = [
             Target(
                 name: "00-system-map-overview",
@@ -82,7 +87,36 @@ enum UISnapshotCapture {
             Target(name: "08-battery", view: wrapped(BatteryView(), model: model), size: pageSize),
             Target(name: "08-input-devices", view: wrapped(InputDevicesView(), model: model), size: pageSize),
             Target(name: "09-report", view: wrapped(ReportView(), model: model), size: pageSize),
-            Target(name: "10-settings", view: wrapped(SettingsView(), model: model), size: pageSize),
+            Target(
+                name: "10-settings",
+                view: wrappedSettings(
+                    model: portableSettingsModel,
+                    size: settingsReferenceSize,
+                    locale: Locale(identifier: "zh-Hans"),
+                    colorScheme: .dark
+                ),
+                size: settingsReferenceSize
+            ),
+            Target(
+                name: "10-settings-no-battery",
+                view: wrappedSettings(
+                    model: model,
+                    size: settingsReferenceSize,
+                    locale: Locale(identifier: "zh-Hans"),
+                    colorScheme: .dark
+                ),
+                size: settingsReferenceSize
+            ),
+            Target(
+                name: "10-settings-light-en",
+                view: wrappedSettings(
+                    model: portableSettingsModel,
+                    size: settingsReferenceSize,
+                    locale: Locale(identifier: "en"),
+                    colorScheme: .light
+                ),
+                size: settingsReferenceSize
+            ),
             Target(
                 name: "11-menu-bar-dashboard",
                 view: wrappedMenuBarDashboard(model: model, initialSection: nil),
@@ -156,6 +190,24 @@ enum UISnapshotCapture {
                 .frame(width: 1_220, height: 790)
                 .background(Color(nsColor: .windowBackgroundColor))
                 .preferredColorScheme(.dark)
+        )
+    }
+
+    private static func wrappedSettings(
+        model: AppModel,
+        size: CGSize,
+        locale: Locale,
+        colorScheme: ColorScheme
+    ) -> AnyView {
+        let router = AppNavigationRouter(destination: .settings)
+        return AnyView(
+            NavigationStack { SettingsView(isStandalone: true) }
+                .environment(model)
+                .environment(router)
+                .environment(\.locale, locale)
+                .frame(width: size.width, height: size.height)
+                .background(Color(nsColor: .windowBackgroundColor))
+                .preferredColorScheme(colorScheme)
         )
     }
 
