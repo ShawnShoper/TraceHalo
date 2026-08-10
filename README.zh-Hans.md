@@ -19,8 +19,10 @@
   <a href="README.md">English</a> · <strong>简体中文</strong>
 </p>
 
+## Release v0.1.0 Beta
+
 > [!IMPORTANT]
-> TraceHalo 目前处于 Beta 阶段，首个公开版本为 **Beta v0.0.1**。当前 `arm64` 安装包仅支持 Apple 芯片 Mac。由于早期 Beta 尚未完成 Apple 公证，macOS 第一次启动时可能要求手动确认。
+> TraceHalo **v0.1.0 Beta（build 2）**以 Developer ID 签名、Apple 公证通过的 Universal 2 应用形式发布，同时支持 Apple 芯片与 Intel Mac。请前往 [GitHub Releases 下载目录](https://github.com/ShawnShoper/TraceHalo/releases)，优先下载文件名包含 `developer-id-notarized.dmg` 的安装包；同时提供 ZIP、TAR.GZ 和 SHA-256 校验文件。如果尚未看到已验证安装包，说明公开上传还未完成。
 
 ## 一眼看懂你的 Mac
 
@@ -71,22 +73,17 @@ TraceHalo **不包含**磁盘清理、SSD TRIM 管理、风扇控制、按键记
 TraceHalo 需要 **macOS 14 或更高版本**。
 
 1. 打开 [Releases 下载页面](https://github.com/ShawnShoper/TraceHalo/releases)。
-2. 下载适合自己 Mac 的最新 ZIP。当前 Apple 芯片安装包名称类似 `TraceHalo-v000.001.000-macOS-arm64-adhoc.zip`。
-3. 双击 ZIP 解压，再把 **TraceHalo.app** 拖入“应用程序”文件夹。
+2. 下载最新的 `universal2-arm64-x86_64-developer-id-notarized.dmg` 及其同名 `.sha256` 文件。ZIP 和 TAR.GZ 镜像包含同一个已验证 App。
+3. 按[分发指南](DISTRIBUTION.md)校验下载文件，打开 DMG，再把 **TraceHalo.app** 拖入“应用程序”文件夹。
 4. 从“应用程序”文件夹启动 TraceHalo。
 
 如果 Releases 页面暂时没有安装包，说明公开 Beta 还没有上传。
 
 ### 遇到“Apple 无法验证 TraceHalo”怎么办？
 
-早期 Beta 在 Apple Developer 申请完成前使用 ad-hoc 签名。只有在你确认安装包来源可信时，才继续下面的操作。
+不要绕过警告，也不要关闭 macOS 安全功能。当前公开 Release 必须同时具备有效 Developer ID 签名、Apple 公证 `Accepted`、已装订 ticket 和匹配的 SHA-256。请先确认文件来自官方 Releases 页面且校验值一致；如果仍出现警告，请提交具体文件名和 macOS 版本。
 
-1. 在 Finder 中打开“应用程序”。
-2. 按住 `Control` 点击 **TraceHalo**，选择“打开”。
-3. 在确认窗口中再次选择“打开”。
-4. 如果没有这个选项，前往“系统设置 → 隐私与安全性”，找到 TraceHalo 提示并选择“仍要打开”。
-
-不要关闭 macOS 安全功能，也不要执行来源不明的终端命令。公开安装包完成 Developer ID 签名和 Apple 公证后，就不再需要手动确认。
+维护者仍可通过 `make release-local` 生成文件名明确包含 `adhoc` 的本地测试包。这类构建只用于本机或受控测试，不属于公开 Release。
 
 ## 第一次使用
 

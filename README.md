@@ -19,8 +19,10 @@
   <strong>English</strong> · <a href="README.zh-Hans.md">简体中文</a>
 </p>
 
+## Release v0.1.0 Beta
+
 > [!IMPORTANT]
-> TraceHalo is currently a Beta. The first public version is **Beta v0.0.1**. Current `arm64` downloads run on Apple silicon Macs. Because the early Beta is not yet notarized by Apple, macOS may ask you to confirm the first launch.
+> TraceHalo **v0.1.0 Beta (build 2)** is distributed as a Developer ID signed, Apple-notarized Universal 2 app for both Apple silicon and Intel Macs. Go to the [GitHub Releases download directory](https://github.com/ShawnShoper/TraceHalo/releases) and choose the `developer-id-notarized.dmg` package. ZIP, TAR.GZ, and SHA-256 verification files are also available. If the verified package is not listed yet, the public upload is not complete.
 
 ## Your Mac, at a glance
 
@@ -71,22 +73,17 @@ Closing the main window does not stop the menu bar monitor.
 TraceHalo requires **macOS 14 or later**.
 
 1. Open the [Releases page](https://github.com/ShawnShoper/TraceHalo/releases).
-2. Download the newest ZIP for your Mac. The current Apple silicon package is named like `TraceHalo-v000.001.000-macOS-arm64-adhoc.zip`.
-3. Double-click the ZIP, then drag **TraceHalo.app** into **Applications**.
+2. Download the newest `universal2-arm64-x86_64-developer-id-notarized.dmg` and its matching `.sha256` file. ZIP and TAR.GZ mirrors contain the same verified app.
+3. Verify the download as described in the [Distribution Guide](DISTRIBUTION.md), open the DMG, then drag **TraceHalo.app** into **Applications**.
 4. Open TraceHalo from the Applications folder.
 
 If the Releases page has no download yet, the public Beta package has not been uploaded.
 
 ### If macOS says Apple cannot verify TraceHalo
 
-The early Beta uses an ad-hoc signature while Apple Developer enrollment is being completed. Only continue if you trust where the package came from.
+Do not bypass the warning or disable macOS security. A current public Release must have a valid Developer ID signature, an accepted Apple notarization, a stapled ticket, and a matching SHA-256 file. Confirm that the download came from the official Releases page and that its checksum matches, then report the affected filename and macOS version if the warning remains.
 
-1. Open **Applications** in Finder.
-2. Hold `Control`, click **TraceHalo**, and choose **Open**.
-3. Choose **Open** again in the confirmation window.
-4. If that option is unavailable, open **System Settings → Privacy & Security** and choose **Open Anyway** beside the TraceHalo message.
-
-Do not disable macOS security features or run unknown Terminal commands. This manual confirmation will no longer be needed after public builds are Developer ID signed and notarized by Apple.
+Maintainers can still create explicitly named `adhoc` packages with `make release-local`. Those builds are for local or controlled testing only and are not public Releases.
 
 ## First-time setup
 

@@ -4,12 +4,16 @@ SNAPSHOT_QA_OUTPUT ?= $(CURDIR)/.build/ui-qa
 SNAPSHOT_QA_MODULE_CACHE := $(CURDIR)/.build/snapshot-qa-module-cache
 SNAPSHOT_QA_SWIFTPM_MODULE_CACHE := $(CURDIR)/.build/snapshot-qa-swiftpm-module-cache
 SWIFTPM_BIN_PATH ?= $(CURDIR)/.build/$(shell uname -m)-apple-macosx/debug
+TRACEHALO_SIGNING_IDENTITY ?= Developer ID Application: Hao Xie (4DXU5FSLLY)
+TRACEHALO_TEAM_ID ?= 4DXU5FSLLY
+TRACEHALO_NOTARY_PROFILE ?= tracehalo-notary
+TRACEHALO_LOCAL_RELEASE_ARCH ?= arm64
 SNAPSHOT_QA_CORE_SOURCES := $(sort $(wildcard Sources/TraceHaloCore/*.swift))
 SNAPSHOT_QA_APP_SOURCES := $(sort $(wildcard Sources/TraceHaloApp/*.swift))
 SNAPSHOT_QA_CORE_RESOURCE_ACCESSOR := $(SWIFTPM_BIN_PATH)/TraceHaloCore.build/DerivedSources/resource_bundle_accessor.swift
 SNAPSHOT_QA_APP_RESOURCE_ACCESSOR := $(SWIFTPM_BIN_PATH)/TraceHaloApp.build/DerivedSources/resource_bundle_accessor.swift
 
-.PHONY: build test app release run snapshot-qa-build snapshot-qa
+.PHONY: build test app release release-local run snapshot-qa-build snapshot-qa
 
 build:
 	swift build
@@ -21,7 +25,21 @@ app:
 	zsh scripts/build-app.sh
 
 release:
-	zsh scripts/package-release.sh
+	TRACEHALO_RELEASE_MODE=developer-id \
+	TRACEHALO_RELEASE_ARCH=universal \
+	TRACEHALO_NOTARIZE=1 \
+	TRACEHALO_STRICT_SIGNING=1 \
+	TRACEHALO_SIGNING_IDENTITY="$(TRACEHALO_SIGNING_IDENTITY)" \
+	TRACEHALO_TEAM_ID="$(TRACEHALO_TEAM_ID)" \
+	TRACEHALO_NOTARY_PROFILE="$(TRACEHALO_NOTARY_PROFILE)" \
+		zsh scripts/package-release.sh
+
+release-local:
+	TRACEHALO_RELEASE_MODE=adhoc \
+	TRACEHALO_RELEASE_ARCH="$(TRACEHALO_LOCAL_RELEASE_ARCH)" \
+	TRACEHALO_NOTARIZE=0 \
+	TRACEHALO_STRICT_SIGNING=0 \
+		zsh scripts/package-release.sh
 
 run:
 	swift run TraceHalo
