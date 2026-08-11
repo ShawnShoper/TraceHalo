@@ -259,6 +259,7 @@ final class MenuBarStatusItemController: NSObject, NSPopoverDelegate {
     }
 
     private func synchronizeFromModel() {
+        synchronizePopoverOpacity()
         guard let statusItem else { return }
         statusItem.isVisible = model.showMenuBarSummary
         if !model.showMenuBarSummary,
@@ -469,8 +470,13 @@ final class MenuBarStatusItemController: NSObject, NSPopoverDelegate {
             TraceHaloAppearanceMode(storedValue: storedValue),
             to: popover
         )
+        synchronizePopoverOpacity()
+    }
+
+    private func synchronizePopoverOpacity() {
         MenuBarPopoverOpacityPolicy.apply(
-            to: popover.contentViewController?.view.window
+            to: popover.contentViewController?.view.window,
+            preferredAlphaValue: model.monitorConfiguration.menuBarPopoverOpacity
         )
     }
 
@@ -598,7 +604,8 @@ final class MenuBarStatusItemController: NSObject, NSPopoverDelegate {
         // presentation. Reassert the product opacity after that lifecycle
         // boundary so cold and warm openings render identically.
         MenuBarPopoverOpacityPolicy.apply(
-            to: popover.contentViewController?.view.window
+            to: popover.contentViewController?.view.window,
+            preferredAlphaValue: model.monitorConfiguration.menuBarPopoverOpacity
         )
         finishPendingPresentationMeasurement(didShow: true)
     }
@@ -725,22 +732,32 @@ enum MenuBarPopoverSizingPolicy {
 }
 
 enum MenuBarPopoverOpacityPolicy {
-    /// Product requirement: the menu-bar panel is 70% opaque. macOS Reduce
-    /// Transparency takes precedence so users who requested stronger contrast
-    /// still receive a fully opaque panel.
-    static let alphaValue: CGFloat = 0.70
+    /// The user-selected opacity is constrained by `MonitorConfiguration`.
+    /// macOS Reduce Transparency takes precedence so users who requested
+    /// stronger contrast still receive a fully opaque panel.
+    static let defaultAlphaValue = MonitorConfiguration.defaultMenuBarPopoverOpacity
 
-    static func resolvedAlphaValue(reduceTransparency: Bool) -> CGFloat {
-        reduceTransparency ? 1 : alphaValue
+    static func resolvedAlphaValue(
+        preferredAlphaValue: Double,
+        reduceTransparency: Bool
+    ) -> CGFloat {
+        guard !reduceTransparency else { return 1 }
+        return CGFloat(
+            MonitorConfiguration.normalizedMenuBarPopoverOpacity(
+                preferredAlphaValue
+            )
+        )
     }
 
     @MainActor
     @discardableResult
     static func apply(
         to window: NSWindow?,
+        preferredAlphaValue: Double = defaultAlphaValue,
         reduceTransparency: Bool = NSWorkspace.shared.accessibilityDisplayShouldReduceTransparency
     ) -> Bool {
         let targetAlphaValue = resolvedAlphaValue(
+            preferredAlphaValue: preferredAlphaValue,
             reduceTransparency: reduceTransparency
         )
         guard let window,
