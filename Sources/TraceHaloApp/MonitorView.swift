@@ -61,6 +61,7 @@ enum MonitorWorkspaceLayout {
 struct MonitorView: View {
     @Environment(AppModel.self) private var model
     @Environment(\.locale) private var locale
+    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
     @State private var showsAdvancedStatusConfiguration = false
     @State private var selectedTab: MonitorConfigurationTab = .modules
     @State private var selectedModule: MonitorModule = .cpuAndGPU
@@ -475,6 +476,8 @@ struct MonitorView: View {
 
             statusBarPreview
 
+            menuBarPopoverOpacityControl
+
             HStack(spacing: 14) {
                 Toggle(
                     text("显示 TraceHalo 标记", "Show TraceHalo Mark"),
@@ -577,6 +580,68 @@ struct MonitorView: View {
             .tint(CalmTheme.primaryText)
         }
         .calmCard()
+    }
+
+    private var menuBarPopoverOpacityControl: some View {
+        let percentage = Int(
+            (model.monitorConfiguration.menuBarPopoverOpacity * 100).rounded()
+        )
+        return HStack(spacing: 12) {
+            Image(systemName: "circle.lefthalf.filled")
+                .font(.system(size: 15, weight: .medium))
+                .foregroundStyle(CalmTheme.accent)
+                .frame(width: 24)
+
+            VStack(alignment: .leading, spacing: 3) {
+                Text(text("菜单栏窗口不透明度", "Menu Window Opacity"))
+                    .font(.callout.weight(.semibold))
+                Text(reduceTransparency
+                    ? text(
+                        "macOS 已启用减少透明度，实际显示固定为 100%",
+                        "Reduce Transparency is enabled, so the actual value is fixed at 100%."
+                    )
+                    : text(
+                        "拖动时真实菜单栏窗口与右侧预览会立即更新",
+                        "The real menu window and preview update as you drag."
+                    ))
+                    .font(.caption)
+                    .foregroundStyle(CalmTheme.secondaryText)
+            }
+            .frame(width: 250, alignment: .leading)
+
+            Slider(
+                value: menuBarPopoverOpacityBinding,
+                in: MonitorConfiguration.minimumMenuBarPopoverOpacity...MonitorConfiguration.maximumMenuBarPopoverOpacity,
+                step: 0.05
+            )
+            .disabled(reduceTransparency)
+            .accessibilityLabel(text("菜单栏窗口不透明度", "Menu window opacity"))
+            .accessibilityValue("\(reduceTransparency ? 100 : percentage)%")
+
+            Text("\(reduceTransparency ? 100 : percentage)%")
+                .font(.system(.callout, design: .monospaced, weight: .semibold))
+                .foregroundStyle(CalmTheme.primaryText)
+                .frame(width: 44, alignment: .trailing)
+        }
+        .padding(12)
+        .background(
+            CalmTheme.controlBackground.opacity(0.72),
+            in: RoundedRectangle(cornerRadius: 10, style: .continuous)
+        )
+        .overlay {
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .strokeBorder(CalmTheme.hairline)
+        }
+    }
+
+    private var menuBarPopoverOpacityBinding: Binding<Double> {
+        Binding(
+            get: { model.monitorConfiguration.menuBarPopoverOpacity },
+            set: {
+                model.monitorConfiguration.menuBarPopoverOpacity =
+                    MonitorConfiguration.normalizedMenuBarPopoverOpacity($0)
+            }
+        )
     }
 
     private var statusBarPreview: some View {

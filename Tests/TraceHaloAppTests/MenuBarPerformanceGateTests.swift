@@ -6,7 +6,7 @@ import TraceHaloCore
 
 final class MenuBarPerformanceGateTests: XCTestCase {
     @MainActor
-    func testPopoverWindowUsesSeventyPercentOpacityUnlessAccessibilityRequiresOpaque() {
+    func testPopoverWindowUsesSelectedOpacityUnlessAccessibilityRequiresOpaque() {
         let window = NSWindow(
             contentRect: NSRect(x: 0, y: 0, width: 282, height: 600),
             styleMask: [.borderless],
@@ -16,17 +16,19 @@ final class MenuBarPerformanceGateTests: XCTestCase {
         window.isReleasedWhenClosed = false
         defer { window.close() }
 
-        XCTAssertEqual(MenuBarPopoverOpacityPolicy.alphaValue, 0.70, accuracy: 0.001)
+        XCTAssertEqual(MenuBarPopoverOpacityPolicy.defaultAlphaValue, 0.90, accuracy: 0.001)
         XCTAssertTrue(
             MenuBarPopoverOpacityPolicy.apply(
                 to: window,
+                preferredAlphaValue: 0.75,
                 reduceTransparency: false
             )
         )
-        XCTAssertEqual(window.alphaValue, 0.70, accuracy: 0.001)
+        XCTAssertEqual(window.alphaValue, 0.75, accuracy: 0.001)
         XCTAssertFalse(
             MenuBarPopoverOpacityPolicy.apply(
                 to: window,
+                preferredAlphaValue: 0.75,
                 reduceTransparency: false
             ),
             "重复同步不应继续修改菜单栏弹窗窗口"
@@ -34,6 +36,15 @@ final class MenuBarPerformanceGateTests: XCTestCase {
         XCTAssertTrue(
             MenuBarPopoverOpacityPolicy.apply(
                 to: window,
+                preferredAlphaValue: 0.95,
+                reduceTransparency: false
+            )
+        )
+        XCTAssertEqual(window.alphaValue, 0.95, accuracy: 0.001)
+        XCTAssertTrue(
+            MenuBarPopoverOpacityPolicy.apply(
+                to: window,
+                preferredAlphaValue: 0.75,
                 reduceTransparency: true
             )
         )
@@ -41,6 +52,7 @@ final class MenuBarPerformanceGateTests: XCTestCase {
         XCTAssertFalse(
             MenuBarPopoverOpacityPolicy.apply(
                 to: window,
+                preferredAlphaValue: 0.75,
                 reduceTransparency: true
             )
         )
@@ -230,6 +242,7 @@ final class MenuBarPerformanceGateTests: XCTestCase {
     func testPopoverOpacityIsRestoredAfterControllerRestart() async throws {
         let model = AppModel()
         model.showMenuBarSummary = true
+        model.monitorConfiguration.menuBarPopoverOpacity = 0.85
         let anchorButton = NSButton(frame: NSRect(x: 0, y: 0, width: 32, height: 22))
         let anchorWindow = NSWindow(
             contentRect: NSRect(x: 100, y: 100, width: 32, height: 22),
@@ -265,11 +278,24 @@ final class MenuBarPerformanceGateTests: XCTestCase {
             XCTAssertEqual(
                 windowAlphaValue,
                 MenuBarPopoverOpacityPolicy.resolvedAlphaValue(
+                    preferredAlphaValue: model.monitorConfiguration.menuBarPopoverOpacity,
                     reduceTransparency: NSWorkspace.shared
                         .accessibilityDisplayShouldReduceTransparency
                 ),
                 accuracy: 0.001
             )
+
+            if cycle == 1 {
+                model.monitorConfiguration.menuBarPopoverOpacity = 0.75
+                guard await waitForPopoverAlpha(
+                    controller,
+                    expected: MenuBarPopoverOpacityPolicy.resolvedAlphaValue(
+                        preferredAlphaValue: 0.75,
+                        reduceTransparency: NSWorkspace.shared
+                            .accessibilityDisplayShouldReduceTransparency
+                    )
+                ) else { return }
+            }
 
             controller.closePopover()
             guard await waitForPopoverDismissal(controller) else { return }
@@ -637,11 +663,12 @@ final class MenuBarPerformanceGateTests: XCTestCase {
         XCTAssertEqual(
             windowAlphaValue,
             MenuBarPopoverOpacityPolicy.resolvedAlphaValue(
+                preferredAlphaValue: MenuBarPopoverOpacityPolicy.defaultAlphaValue,
                 reduceTransparency: NSWorkspace.shared
                     .accessibilityDisplayShouldReduceTransparency
             ),
             accuracy: 0.001,
-            "第 \(iteration) 次打开后 popover 未保持 70% 不透明度",
+            "第 \(iteration) 次打开后 popover 未保持默认不透明度",
             file: file,
             line: line
         )
@@ -670,6 +697,24 @@ final class MenuBarPerformanceGateTests: XCTestCase {
             file: file,
             line: line
         )
+    }
+
+    @MainActor
+    private func waitForPopoverAlpha(
+        _ controller: MenuBarStatusItemController,
+        expected: CGFloat,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) async -> Bool {
+        for _ in 0..<100 {
+            if let alphaValue = controller.popoverGeometrySnapshot?.windowAlphaValue,
+               abs(alphaValue - expected) <= 0.001 {
+                return true
+            }
+            try? await Task.sleep(for: .milliseconds(5))
+        }
+        XCTFail("菜单栏弹窗透明度未在 500ms 内实时更新", file: file, line: line)
+        return false
     }
 
     private func assertHorizontalPopoverGeometry(

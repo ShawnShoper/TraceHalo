@@ -46,6 +46,11 @@ final class ConfigurationTests: XCTestCase {
         XCTAssertTrue(components.allSatisfy(\.isVisible))
         XCTAssertEqual(MonitorConfiguration.standard.statusBarLayoutMode, .full)
         XCTAssertFalse(MonitorConfiguration.standard.showsStatusBarIcon)
+        XCTAssertEqual(
+            MonitorConfiguration.standard.menuBarPopoverOpacity,
+            MonitorConfiguration.defaultMenuBarPopoverOpacity,
+            accuracy: 0.001
+        )
     }
 
     func testStandardConfigurationHasExpectedQuickItems() {
@@ -97,6 +102,7 @@ final class ConfigurationTests: XCTestCase {
         var source = MonitorConfiguration.standard
         source.statusBarLayoutMode = .compact
         source.showsStatusBarIcon = true
+        source.menuBarPopoverOpacity = 0.80
         let encoded = try JSONEncoder().encode(source)
         let decoded = try JSONDecoder().decode(MonitorConfiguration.self, from: encoded)
 
@@ -122,6 +128,36 @@ final class ConfigurationTests: XCTestCase {
         XCTAssertEqual(decoded.quickItems, MonitorConfiguration.defaultQuickItems)
         XCTAssertEqual(decoded.statusBarLayoutMode, .full)
         XCTAssertFalse(decoded.showsStatusBarIcon)
+        XCTAssertEqual(
+            decoded.menuBarPopoverOpacity,
+            MonitorConfiguration.defaultMenuBarPopoverOpacity,
+            accuracy: 0.001
+        )
+    }
+
+    func testMenuBarPopoverOpacityIsNormalizedToSupportedRange() {
+        var configuration = MonitorConfiguration.standard
+
+        configuration.menuBarPopoverOpacity = 0.20
+        XCTAssertEqual(
+            configuration.menuBarPopoverOpacity,
+            MonitorConfiguration.minimumMenuBarPopoverOpacity,
+            accuracy: 0.001
+        )
+
+        configuration.menuBarPopoverOpacity = 1.40
+        XCTAssertEqual(
+            configuration.menuBarPopoverOpacity,
+            MonitorConfiguration.maximumMenuBarPopoverOpacity,
+            accuracy: 0.001
+        )
+
+        configuration.menuBarPopoverOpacity = .nan
+        XCTAssertEqual(
+            configuration.menuBarPopoverOpacity,
+            MonitorConfiguration.defaultMenuBarPopoverOpacity,
+            accuracy: 0.001
+        )
     }
 
     func testLegacyFourChartStatusBarMigratesToSenseiStyles() throws {

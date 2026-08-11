@@ -262,11 +262,22 @@ public struct MonitorQuickItem: Identifiable, Codable, Equatable, Sendable {
 }
 
 public struct MonitorConfiguration: Codable, Equatable, Sendable {
+    public static let minimumMenuBarPopoverOpacity = 0.70
+    public static let maximumMenuBarPopoverOpacity = 1.00
+    public static let defaultMenuBarPopoverOpacity = 0.90
+
     public var isCombined: Bool
     public var panels: [MonitorPanel]
     public var modulePreferences: [MonitorModulePreference]
     public var statusBarLayoutMode: MonitorStatusBarLayoutMode
     public var showsStatusBarIcon: Bool
+    public var menuBarPopoverOpacity: Double {
+        didSet {
+            menuBarPopoverOpacity = Self.normalizedMenuBarPopoverOpacity(
+                menuBarPopoverOpacity
+            )
+        }
+    }
     public var statusBarComponents: [MonitorStatusBarComponent]
     public var quickItems: [MonitorQuickItem]
 
@@ -276,6 +287,7 @@ public struct MonitorConfiguration: Codable, Equatable, Sendable {
         modulePreferences: [MonitorModulePreference] = MonitorConfiguration.defaultModulePreferences,
         statusBarLayoutMode: MonitorStatusBarLayoutMode = .full,
         showsStatusBarIcon: Bool = false,
+        menuBarPopoverOpacity: Double = MonitorConfiguration.defaultMenuBarPopoverOpacity,
         statusBarComponents: [MonitorStatusBarComponent] = MonitorConfiguration.defaultStatusBarComponents,
         quickItems: [MonitorQuickItem] = MonitorConfiguration.defaultQuickItems
     ) {
@@ -284,6 +296,9 @@ public struct MonitorConfiguration: Codable, Equatable, Sendable {
         self.modulePreferences = Self.normalizedModulePreferences(modulePreferences)
         self.statusBarLayoutMode = statusBarLayoutMode
         self.showsStatusBarIcon = showsStatusBarIcon
+        self.menuBarPopoverOpacity = Self.normalizedMenuBarPopoverOpacity(
+            menuBarPopoverOpacity
+        )
         self.statusBarComponents = statusBarComponents
         self.quickItems = quickItems
     }
@@ -294,6 +309,7 @@ public struct MonitorConfiguration: Codable, Equatable, Sendable {
         case modulePreferences
         case statusBarLayoutMode
         case showsStatusBarIcon
+        case menuBarPopoverOpacity
         case statusBarComponents
         case quickItems
     }
@@ -319,6 +335,12 @@ public struct MonitorConfiguration: Codable, Equatable, Sendable {
             Bool.self,
             forKey: .showsStatusBarIcon
         ) ?? false
+        menuBarPopoverOpacity = Self.normalizedMenuBarPopoverOpacity(
+            try container.decodeIfPresent(
+                Double.self,
+                forKey: .menuBarPopoverOpacity
+            ) ?? Self.defaultMenuBarPopoverOpacity
+        )
         var decodedStatusBarComponents = try container.decodeIfPresent(
             [MonitorStatusBarComponent].self,
             forKey: .statusBarComponents
@@ -344,8 +366,17 @@ public struct MonitorConfiguration: Codable, Equatable, Sendable {
         try container.encode(modulePreferences, forKey: .modulePreferences)
         try container.encode(statusBarLayoutMode, forKey: .statusBarLayoutMode)
         try container.encode(showsStatusBarIcon, forKey: .showsStatusBarIcon)
+        try container.encode(menuBarPopoverOpacity, forKey: .menuBarPopoverOpacity)
         try container.encode(statusBarComponents, forKey: .statusBarComponents)
         try container.encode(quickItems, forKey: .quickItems)
+    }
+
+    public static func normalizedMenuBarPopoverOpacity(_ value: Double) -> Double {
+        guard value.isFinite else { return defaultMenuBarPopoverOpacity }
+        return min(
+            max(value, minimumMenuBarPopoverOpacity),
+            maximumMenuBarPopoverOpacity
+        )
     }
 
     public static let defaultStatusBarComponents = [
