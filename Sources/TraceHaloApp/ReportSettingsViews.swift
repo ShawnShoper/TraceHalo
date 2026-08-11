@@ -1465,8 +1465,8 @@ struct SettingsAboutBuildMetadata: Equatable {
     }
 
     static let snapshotFixture = SettingsAboutBuildMetadata(
-        version: "0.1.0",
-        build: "2",
+        version: "0.1.1",
+        build: "3",
         releaseChannel: "Beta"
     )
 

@@ -88,7 +88,7 @@ final class ReleaseScriptContractTests: XCTestCase {
         XCTAssertLessThan(validate.lowerBound, assess.lowerBound)
     }
 
-    func testArtifactNamesCarryVersionBuildChannelAndArchitecture() throws {
+    func testArtifactNamesUseAppVersionAndExplicitArchitecturesOnly() throws {
         let source = try script(named: "package-release.sh")
 
         assertContains("CFBundleShortVersionString", in: source)
@@ -97,21 +97,46 @@ final class ReleaseScriptContractTests: XCTestCase {
         assertContains("PUBLIC_VERSION", in: source)
         assertContains("BUILD_NUMBER", in: source)
         assertContains("RELEASE_CHANNEL", in: source)
-        assertContains("universal2-arm64-x86_64", in: source)
-        assertContains("developer-id", in: source)
-        assertContains("notarized", in: source)
-        assertContains("TraceHalo-", in: source)
-        assertContains("-macOS-", in: source)
-        assertContains(#"VERSION_LABEL="${PUBLIC_VERSION}""#, in: source)
+        assertContains(#"ARCH_LABEL="arm64-x86_64""#, in: source)
         assertContains(
-            #"VERSION_LABEL="${VERSION_LABEL}-${SAFE_RELEASE_CHANNEL}""#,
+            #"PAYLOAD_NAME="TraceHalo-${VERSION}-${ARCH_LABEL}""#,
             in: source
         )
-        assertContains(#"VERSION_LABEL="${VERSION_LABEL}-build${BUILD_NUMBER}""#, in: source)
-        assertContains(
-            #"PAYLOAD_NAME="TraceHalo-${VERSION_LABEL}-macOS-${ARCH_LABEL}-${VERIFICATION_LABEL}""#,
+        XCTAssertFalse(
+            source.contains(#"PAYLOAD_NAME="TraceHalo-${PUBLIC_VERSION}"#),
+            "Artifact names must use the app version without the public tag prefix"
+        )
+        XCTAssertFalse(
+            source.contains(#"PAYLOAD_NAME="TraceHalo-${VERSION_LABEL}"#),
+            "Artifact names must not include build, channel, platform, or signing labels"
+        )
+    }
+
+    func testPublicVersionUsesCompactSemanticTagWithoutZeroPadding() throws {
+        let source = try script(named: "public-version.sh")
+
+        assertContains(#"printf 'v%d.%d.%d\n'"#, in: source)
+        XCTAssertFalse(
+            source.contains("%03d"),
+            "Public versions must use compact tags such as v0.1.1"
+        )
+    }
+
+    func testDmgContainsNoInstallationGuide() throws {
+        let source = try script(named: "package-release.sh")
+        let dmgStageStart = try requiredRange(
+            of: #"ditto "${APP_PATH}" "${DMG_STAGE}/TraceHalo.app""#,
             in: source
         )
+        let dmgCreation = try requiredRange(of: "hdiutil create", in: source)
+        let dmgStageSource = String(source[dmgStageStart.lowerBound..<dmgCreation.lowerBound])
+
+        assertContains(#"ln -s /Applications "${DMG_STAGE}/Applications""#, in: dmgStageSource)
+        XCTAssertFalse(
+            dmgStageSource.contains("安装说明.md"),
+            "The DMG staging directory must not receive an installation guide"
+        )
+        assertContains(#"[[ -e "${MOUNT_PATH}/安装说明.md" ]]"#, in: source)
     }
 
     func testEveryReleaseArchiveGetsASha256Sidecar() throws {
@@ -161,7 +186,7 @@ final class ReleaseScriptContractTests: XCTestCase {
     }
 
     private func releaseScripts() throws -> [(name: String, source: String)] {
-        try ["build-app.sh", "package-release.sh"].map { name in
+        try ["build-app.sh", "package-release.sh", "public-version.sh"].map { name in
             (name, try script(named: name))
         }
     }

@@ -12,15 +12,15 @@ TraceHalo 已取得 `Developer ID Application: Hao Xie (4DXU5FSLLY)` 证书，�
 - 同一构建输出 DMG、TAR.GZ、ZIP、每个文件各自的 `.sha256`，以及 `release-manifest.txt`；
 - 任一签名、架构、公证、staple、Gatekeeper 或校验步骤失败，整次正式发布失败。
 
-当前 `0.1.0` Beta build 2 的正式产物名为：
+当前 `0.1.1` Beta build 3 的正式产物名为：
 
 ```text
-TraceHalo-v000.001.000-Beta-build2-macOS-universal2-arm64-x86_64-developer-id-notarized.dmg
-TraceHalo-v000.001.000-Beta-build2-macOS-universal2-arm64-x86_64-developer-id-notarized.tar.gz
-TraceHalo-v000.001.000-Beta-build2-macOS-universal2-arm64-x86_64-developer-id-notarized.zip
+TraceHalo-0.1.1-arm64-x86_64.dmg
+TraceHalo-0.1.1-arm64-x86_64.tar.gz
+TraceHalo-0.1.1-arm64-x86_64.zip
 ```
 
-`.dmg` 是面向普通用户的首选安装包；`.tar.gz` 和 `.zip` 提供相同已签名、已公证并已装订 ticket 的 App，适合不同下载或自动化环境。
+`.dmg` 是面向普通用户的首选安装包，盘内仅包含 `TraceHalo.app` 和 `Applications` 快捷入口，不放置安装说明。`.tar.gz` 和 `.zip` 提供相同已签名、已公证并已装订 ticket 的 App，以及独立发布说明，适合不同下载或自动化环境。
 
 ## 用户下载与安装
 

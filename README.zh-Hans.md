@@ -10,7 +10,7 @@
 
 <p align="center">
   <img alt="Beta" src="https://img.shields.io/badge/状态-Beta-f0a43c">
-  <img alt="版本" src="https://img.shields.io/badge/版本-v000.001.000-4f8cff">
+  <img alt="版本" src="https://img.shields.io/badge/版本-v0.1.1-4f8cff">
   <img alt="macOS 14+" src="https://img.shields.io/badge/macOS-14%2B-202733">
   <img alt="许可证" src="https://img.shields.io/badge/许可证-Apache--2.0-56b37f">
 </p>
@@ -19,10 +19,10 @@
   <a href="README.md">English</a> · <strong>简体中文</strong>
 </p>
 
-## Release v0.1.0 Beta
+## Release v0.1.1 Beta
 
 > [!IMPORTANT]
-> TraceHalo **v0.1.0 Beta（build 2）**以 Developer ID 签名、Apple 公证通过的 Universal 2 应用形式发布，同时支持 Apple 芯片与 Intel Mac。请前往 [GitHub Releases 下载目录](https://github.com/ShawnShoper/TraceHalo/releases)，优先下载文件名包含 `developer-id-notarized.dmg` 的安装包；同时提供 ZIP、TAR.GZ 和 SHA-256 校验文件。如果尚未看到已验证安装包，说明公开上传还未完成。
+> TraceHalo **v0.1.1 Beta（build 3）**以 Developer ID 签名、Apple 公证通过的 Universal 2 应用形式发布，同时支持 Apple 芯片与 Intel Mac。请前往 [GitHub Releases 下载目录](https://github.com/ShawnShoper/TraceHalo/releases)，优先下载 `TraceHalo-0.1.1-arm64-x86_64.dmg`；同时提供 ZIP、TAR.GZ 和 SHA-256 校验文件。如果尚未看到已验证安装包，说明公开上传还未完成。
 
 ## 一眼看懂你的 Mac
 
@@ -73,7 +73,7 @@ TraceHalo **不包含**磁盘清理、SSD TRIM 管理、风扇控制、按键记
 TraceHalo 需要 **macOS 14 或更高版本**。
 
 1. 打开 [Releases 下载页面](https://github.com/ShawnShoper/TraceHalo/releases)。
-2. 下载最新的 `universal2-arm64-x86_64-developer-id-notarized.dmg` 及其同名 `.sha256` 文件。ZIP 和 TAR.GZ 镜像包含同一个已验证 App。
+2. 下载最新的 `TraceHalo-<version>-arm64-x86_64.dmg` 及其同名 `.sha256` 文件。ZIP 和 TAR.GZ 镜像包含同一个已验证 App。
 3. 按[分发指南](DISTRIBUTION.md)校验下载文件，打开 DMG，再把 **TraceHalo.app** 拖入“应用程序”文件夹。
 4. 从“应用程序”文件夹启动 TraceHalo。
 

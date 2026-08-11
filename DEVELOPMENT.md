@@ -21,7 +21,7 @@ open TraceHalo.xcodeproj
 
 Select the **TraceHalo** scheme. In the TraceHalo target you can manage:
 
-- **General**: app version (`0.1.0`), build number (`2`), deployment target, and app category.
+- **General**: app version (`0.1.1`), build number (`3`), deployment target, and app category.
 - **Signing & Capabilities**: development team, automatic signing, hardened runtime, and future capabilities.
 - **Build Settings**: bundle identifier (`com.tseai.tracehalo`) and advanced compiler settings.
 
@@ -63,16 +63,16 @@ make snapshot-qa
 
 ### Version numbers
 
-Public versions use a fixed-width format:
+Public versions use a compact semantic tag:
 
 ```text
-v000.000.001  first Beta
-v000.000.002  next patch
-v000.001.000  next feature milestone
-v001.000.000  first major release
+v0.0.1  first Beta
+v0.0.2  next patch
+v0.1.0  next feature milestone
+v1.0.0  first major release
 ```
 
-The current Apple bundle metadata stores `v000.001.000` as `0.1.0`, with build number `2` and release channel `Beta`. `scripts/public-version.sh` formats the public version used by release files and tags.
+The current Apple bundle metadata stores public version `v0.1.1` as `0.1.1`, with build number `3` and release channel `Beta`. `scripts/public-version.sh` formats the public version used by release files and tags.
 
 ### Release packaging
 
@@ -131,7 +131,7 @@ open TraceHalo.xcodeproj
 
 选择 **TraceHalo** Scheme。进入 TraceHalo Target 后可以直接管理：
 
-- **General**：应用版本（`0.1.0`）、构建号（`2`）、最低系统版本和应用分类。
+- **General**：应用版本（`0.1.1`）、构建号（`3`）、最低系统版本和应用分类。
 - **Signing & Capabilities**：开发团队、自动签名、Hardened Runtime，以及以后新增的能力。
 - **Build Settings**：Bundle ID（`com.tseai.tracehalo`）和高级编译配置。
 
@@ -173,16 +173,16 @@ make snapshot-qa
 
 ### 版本号
 
-公开版本使用固定宽度格式：
+公开版本使用简洁的语义化标签：
 
 ```text
-v000.000.001  首个 Beta
-v000.000.002  下一个修复版本
-v000.001.000  下一个功能里程碑
-v001.000.000  首个正式大版本
+v0.0.1  首个 Beta
+v0.0.2  下一个修复版本
+v0.1.0  下一个功能里程碑
+v1.0.0  首个正式大版本
 ```
 
-当前 Apple 应用内部将 `v000.001.000` 保存为 `0.1.0`，构建号为 `2`，发行渠道为 `Beta`。`scripts/public-version.sh` 会生成安装包和 Git Tag 使用的公开版本号。
+当前 Apple 应用内部将公开版本 `v0.1.1` 保存为 `0.1.1`，构建号为 `3`，发行渠道为 `Beta`。`scripts/public-version.sh` 会生成安装包和 Git Tag 使用的公开版本号。
 
 ### 发行包构建
 

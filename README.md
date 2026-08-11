@@ -10,7 +10,7 @@
 
 <p align="center">
   <img alt="Beta" src="https://img.shields.io/badge/status-Beta-f0a43c">
-  <img alt="Version" src="https://img.shields.io/badge/version-v000.001.000-4f8cff">
+  <img alt="Version" src="https://img.shields.io/badge/version-v0.1.1-4f8cff">
   <img alt="macOS 14+" src="https://img.shields.io/badge/macOS-14%2B-202733">
   <img alt="License" src="https://img.shields.io/badge/license-Apache--2.0-56b37f">
 </p>
@@ -19,10 +19,10 @@
   <strong>English</strong> · <a href="README.zh-Hans.md">简体中文</a>
 </p>
 
-## Release v0.1.0 Beta
+## Release v0.1.1 Beta
 
 > [!IMPORTANT]
-> TraceHalo **v0.1.0 Beta (build 2)** is distributed as a Developer ID signed, Apple-notarized Universal 2 app for both Apple silicon and Intel Macs. Go to the [GitHub Releases download directory](https://github.com/ShawnShoper/TraceHalo/releases) and choose the `developer-id-notarized.dmg` package. ZIP, TAR.GZ, and SHA-256 verification files are also available. If the verified package is not listed yet, the public upload is not complete.
+> TraceHalo **v0.1.1 Beta (build 3)** is distributed as a Developer ID signed, Apple-notarized Universal 2 app for both Apple silicon and Intel Macs. Go to the [GitHub Releases download directory](https://github.com/ShawnShoper/TraceHalo/releases) and choose `TraceHalo-0.1.1-arm64-x86_64.dmg`. ZIP, TAR.GZ, and SHA-256 verification files are also available. If the verified package is not listed yet, the public upload is not complete.
 
 ## Your Mac, at a glance
 
@@ -73,7 +73,7 @@ Closing the main window does not stop the menu bar monitor.
 TraceHalo requires **macOS 14 or later**.
 
 1. Open the [Releases page](https://github.com/ShawnShoper/TraceHalo/releases).
-2. Download the newest `universal2-arm64-x86_64-developer-id-notarized.dmg` and its matching `.sha256` file. ZIP and TAR.GZ mirrors contain the same verified app.
+2. Download the newest `TraceHalo-<version>-arm64-x86_64.dmg` and its matching `.sha256` file. ZIP and TAR.GZ mirrors contain the same verified app.
 3. Verify the download as described in the [Distribution Guide](DISTRIBUTION.md), open the DMG, then drag **TraceHalo.app** into **Applications**.
 4. Open TraceHalo from the Applications folder.
 

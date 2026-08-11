@@ -11,9 +11,6 @@ RELEASE_CHANNEL="$(
     /usr/libexec/PlistBuddy -c 'Print :TraceHaloReleaseChannel' "${INFO_PLIST}" \
         2>/dev/null || true
 )"
-SAFE_RELEASE_CHANNEL="$(
-    print -r -- "${RELEASE_CHANNEL}" | tr -cd '[:alnum:]._-'
-)"
 PUBLIC_VERSION="$("${SCRIPT_DIR}/public-version.sh" "${VERSION}")"
 TEAM_ID="${TRACEHALO_TEAM_ID:-4DXU5FSLLY}"
 NOTARY_PROFILE="${TRACEHALO_NOTARY_PROFILE:-tracehalo-notary}"
@@ -139,31 +136,19 @@ fi
 if [[ "${RELEASE_ARCH}" == "universal" ]]; then
     UNIVERSAL_BUILD=1
     TARGET_ARCH=native
-    ARCH_LABEL="universal2-arm64-x86_64"
+    ARCH_LABEL="arm64-x86_64"
 else
     UNIVERSAL_BUILD=0
     TARGET_ARCH=arm64
     ARCH_LABEL="arm64"
 fi
 
-VERSION_LABEL="${PUBLIC_VERSION}"
-if [[ -n "${SAFE_RELEASE_CHANNEL}" ]]; then
-    VERSION_LABEL="${VERSION_LABEL}-${SAFE_RELEASE_CHANNEL}"
-fi
-VERSION_LABEL="${VERSION_LABEL}-build${BUILD_NUMBER}"
-
 if [[ "${REQUESTED_MODE}" == "developer-id" ]]; then
     SIGNING_LABEL="developer-id"
 else
     SIGNING_LABEL="adhoc"
 fi
-if [[ "${NOTARIZE}" == "1" ]]; then
-    VERIFICATION_LABEL="${SIGNING_LABEL}-notarized"
-else
-    VERIFICATION_LABEL="${SIGNING_LABEL}-UNNOTARIZED"
-fi
-
-PAYLOAD_NAME="TraceHalo-${VERSION_LABEL}-macOS-${ARCH_LABEL}-${VERIFICATION_LABEL}"
+PAYLOAD_NAME="TraceHalo-${VERSION}-${ARCH_LABEL}"
 PAYLOAD_ROOT="${WORK_ROOT}/${PAYLOAD_NAME}"
 APP_PATH="${PAYLOAD_ROOT}/TraceHalo.app"
 DMG_STAGE="${WORK_ROOT}/dmg-stage"
@@ -233,7 +218,6 @@ if [[ "${REQUESTED_MODE}" == "developer-id" ]]; then
 fi
 
 ditto "${APP_PATH}" "${DMG_STAGE}/TraceHalo.app"
-cp "${INSTALL_GUIDE}" "${DMG_STAGE}/安装说明.md"
 ln -s /Applications "${DMG_STAGE}/Applications"
 
 hdiutil create \
@@ -344,6 +328,9 @@ verify_architectures "${MOUNT_PATH}/TraceHalo.app/Contents/MacOS/TraceHalo"
 verify_architectures \
     "${MOUNT_PATH}/TraceHalo.app/Contents/Resources/TraceHaloSensorHelper"
 codesign --verify --deep --strict --verbose=4 "${MOUNT_PATH}/TraceHalo.app"
+if [[ -e "${MOUNT_PATH}/安装说明.md" ]]; then
+    fail "The DMG must not contain an installation guide." 3
+fi
 hdiutil detach "${MOUNT_PATH}" >/dev/null
 DMG_MOUNTED=0
 
@@ -369,7 +356,7 @@ for artifact in "${FINAL_DMG}" "${FINAL_ZIP}" "${FINAL_TAR}"; do
     print -r -- "${artifact_sha}  ${artifact_name}" > "${artifact}.sha256"
 done
 
-DIST_DIR="$(mktemp -d "${DIST_ROOT}/${VERSION_LABEL}-${RELEASE_STAMP}.XXXXXX")"
+DIST_DIR="$(mktemp -d "${DIST_ROOT}/${VERSION}-${RELEASE_STAMP}.XXXXXX")"
 for artifact in \
     "${FINAL_DMG}" \
     "${FINAL_DMG}.sha256" \

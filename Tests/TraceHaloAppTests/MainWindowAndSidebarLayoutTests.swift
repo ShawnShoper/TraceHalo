@@ -677,8 +677,8 @@ final class MainWindowAndSidebarLayoutTests: XCTestCase {
         let expectations: [(URL, String, String, String)] = [
             (
                 packageRoot.appendingPathComponent("Resources/Info.plist"),
-                "0.1.0",
-                "2",
+                "0.1.1",
+                "3",
                 "Beta"
             ),
             (
