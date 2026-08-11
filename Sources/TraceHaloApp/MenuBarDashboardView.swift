@@ -870,6 +870,7 @@ struct MenuBarDashboardView: View {
     @Environment(AppNavigationRouter.self) private var navigationRouter
     @Environment(\.openWindow) private var openWindow
     @Environment(\.locale) private var locale
+    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
     @State private var iconRepository = MenuBarIconRepository.shared
     @State private var selection: MenuBarDashboardSelection
     @State private var loadedDetailSection: MenuBarDashboardSection?
@@ -947,6 +948,7 @@ struct MenuBarDashboardView: View {
                 .inset(by: 0.5)
                 .stroke(MenuOverviewPalette.border, lineWidth: 1)
         }
+        .opacity(dashboardOpacity)
         .fixedSize(horizontal: true, vertical: true)
         .task(
             id: MenuBarIconPrefetchKey.quickActions(
@@ -983,6 +985,16 @@ struct MenuBarDashboardView: View {
                 ?? visibleSections.first
             selectSection(next)
         }
+    }
+
+    private var dashboardOpacity: Double {
+        guard presentationMode == .embeddedPreview else { return 1 }
+        return Double(
+            MenuBarPopoverOpacityPolicy.resolvedAlphaValue(
+                preferredAlphaValue: model.monitorConfiguration.menuBarPopoverOpacity,
+                reduceTransparency: reduceTransparency
+            )
+        )
     }
 
     private func primaryColumn(
