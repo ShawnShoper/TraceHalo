@@ -5,8 +5,8 @@ import XCTest
 
 final class MenuBarAppearanceRenderingTests: XCTestCase {
     func testAppearanceModeNormalizesStoredValues() {
-        XCTAssertEqual(TraceHaloAppearanceMode(storedValue: nil), .system)
-        XCTAssertEqual(TraceHaloAppearanceMode(storedValue: "unsupported"), .system)
+        XCTAssertEqual(TraceHaloAppearanceMode(storedValue: nil), .light)
+        XCTAssertEqual(TraceHaloAppearanceMode(storedValue: "unsupported"), .light)
         for mode in TraceHaloAppearanceMode.allCases {
             XCTAssertEqual(TraceHaloAppearanceMode(storedValue: mode.rawValue), mode)
         }
@@ -52,6 +52,51 @@ final class MenuBarAppearanceRenderingTests: XCTestCase {
         XCTAssertFalse(window.isKeyWindow)
         XCTAssertFalse(TraceHaloAppearancePolicy.apply(.system, to: window))
         XCTAssertEqual(NSApp.appearance?.name, applicationOverrideName)
+    }
+
+    @MainActor
+    func testWindowCanvasRedrawsAfterAppearancePreferenceChanges() async throws {
+        let suiteName = "TraceHalo.AppearanceTest.\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        let key = TraceHaloAppearanceMode.storageKey
+        defaults.set(TraceHaloAppearanceMode.dark.rawValue, forKey: key)
+
+        let size = CGSize(width: 240, height: 160)
+        let window = NSWindow(
+            contentRect: NSRect(origin: .zero, size: size),
+            styleMask: [.titled],
+            backing: .buffered,
+            defer: false
+        )
+        window.isReleasedWhenClosed = false
+        let hostingView = NSHostingView(
+            rootView: FixedWindowCanvasRoot(contentSize: size) {
+                CalmTheme.canvas
+            }
+            .defaultAppStorage(defaults)
+        )
+        window.contentView = hostingView
+        defer {
+            window.contentView = nil
+            window.close()
+        }
+
+        await InMemoryHostingRenderer.settleUI(hostingView)
+        let darkLuminance = try averageLuminance(of: InMemoryHostingRenderer.bitmapData(for: hostingView))
+        XCTAssertEqual(window.appearance?.name, .darkAqua)
+
+        defaults.set(TraceHaloAppearanceMode.light.rawValue, forKey: key)
+        await InMemoryHostingRenderer.settleUI(hostingView)
+        let lightLuminance = try averageLuminance(of: InMemoryHostingRenderer.bitmapData(for: hostingView))
+        XCTAssertEqual(window.appearance?.name, .aqua)
+        XCTAssertGreaterThan(lightLuminance, darkLuminance + 0.30)
+
+        defaults.set(TraceHaloAppearanceMode.dark.rawValue, forKey: key)
+        await InMemoryHostingRenderer.settleUI(hostingView)
+        XCTAssertEqual(window.appearance?.name, .darkAqua)
+        let restoredLuminance = try averageLuminance(of: InMemoryHostingRenderer.bitmapData(for: hostingView))
+        XCTAssertEqual(restoredLuminance, darkLuminance, accuracy: 0.02)
     }
 
     @MainActor

@@ -8,6 +8,7 @@ enum UISnapshotCapture {
         let name: String
         let view: AnyView
         let size: CGSize
+        var appearance: NSAppearance.Name?
     }
 
     struct CaptureError: LocalizedError {
@@ -38,50 +39,55 @@ enum UISnapshotCapture {
     static func captureAll(
         model: AppModel,
         portableSettingsModel: AppModel,
+        reportRegressionModel: AppModel,
         outputDirectory: URL
-    ) throws {
+    ) async throws {
         try verifyMenuBarIntrinsicSize(model: model, initialSection: nil)
         for section in MenuBarDashboardSection.referenceOrder {
             try verifyMenuBarIntrinsicSize(model: model, initialSection: section)
         }
         try verifyStatusBarIntrinsicSize(model: model)
 
-        try FileManager.default.createDirectory(
-            at: outputDirectory,
-            withIntermediateDirectories: true
-        )
-
         let pageSize = CGSize(width: 1_220, height: 790)
+        let homeSize = CGSize(width: 1_320, height: 840)
+        let minimumHomeSize = CGSize(width: 1_180, height: 700)
+        let compactHomeSize = CGSize(width: 900, height: 700)
         let monitorReferenceSize = CGSize(width: 1_558, height: 1_010)
         let storageReferenceSize = CGSize(width: 1_558, height: 1_010)
         let settingsReferenceSize = CGSize(width: 1_558, height: 1_010)
         let aboutReferenceSize = CGSize(width: 980, height: 624)
         var targets = [
-            Target(
+            rootTarget(
                 name: "00-system-map-overview",
-                view: wrappedRoot(model: model, destination: .dashboard, size: pageSize),
-                size: pageSize
+                model: model,
+                size: homeSize
             ),
-            Target(name: "01-dashboard", view: wrapped(DashboardView(), model: model), size: pageSize),
-            Target(
+            rootTarget(name: "01-dashboard", model: model, size: homeSize),
+            rootTarget(name: "01-live-home-minimum", model: model, size: minimumHomeSize),
+            rootTarget(name: "01-live-home-compact", model: model, size: compactHomeSize),
+            rootTarget(name: "01-live-home-light-en", model: model, size: homeSize, locale: Locale(identifier: "en")),
+            rootTarget(name: "01-live-home-dark", model: model, size: homeSize, colorScheme: .dark),
+            rootTarget(
                 name: "02-monitor",
-                view: wrappedRoot(
-                    model: model,
-                    destination: .monitor,
-                    size: monitorReferenceSize
-                ),
-                size: monitorReferenceSize
+                model: model,
+                size: monitorReferenceSize,
+                workspace: .menuBarLayout
+            ),
+            rootTarget(
+                name: "02-monitor-light-en",
+                model: model,
+                size: monitorReferenceSize,
+                workspace: .menuBarLayout,
+                locale: Locale(identifier: "en")
             ),
             Target(name: "03-optimizer", view: wrapped(OptimizerView(), model: model), size: pageSize),
             Target(name: "04-uninstaller", view: wrapped(UninstallerView(), model: model), size: pageSize),
-            Target(
+            rootTarget(
                 name: "05-storage",
-                view: wrappedRoot(
-                    model: model,
-                    destination: .storage,
-                    size: storageReferenceSize
-                ),
-                size: storageReferenceSize
+                model: model,
+                size: storageReferenceSize,
+                destination: .storage,
+                colorScheme: .dark
             ),
             Target(name: "06-graphics", view: wrapped(GraphicsView(), model: model), size: pageSize),
             Target(name: "07-cooling", view: wrapped(CoolingView(), model: model), size: pageSize),
@@ -144,6 +150,15 @@ enum UISnapshotCapture {
             )
         ]
 
+        for section in [MenuBarDashboardSection.cpu, .memory, .network, .fans, .battery] {
+            targets.append(rootTarget(
+                name: "01-live-detail-\(section.rawValue)",
+                model: section == .battery ? portableSettingsModel : model,
+                size: homeSize,
+                workspace: .live(section)
+            ))
+        }
+
         for (offset, section) in MenuBarDashboardSection.referenceOrder.enumerated() {
             targets.append(
                 Target(
@@ -158,9 +173,41 @@ enum UISnapshotCapture {
             )
         }
 
+        targets.append(contentsOf: reportRegressionTargets(model: reportRegressionModel))
+        try await capture(targets, outputDirectory: outputDirectory)
+    }
+
+    static func captureReportRegression(model: AppModel, outputDirectory: URL) async throws {
+        try await capture(reportRegressionTargets(model: model), outputDirectory: outputDirectory)
+    }
+
+    private static func reportRegressionTargets(model: AppModel) -> [Target] {
+        let sizes = [
+            (name: "standard", size: CGSize(width: 1_320, height: 840)),
+            (name: "compact", size: CGSize(width: 1_180, height: 750))
+        ]
+        return sizes.flatMap { viewport in
+            ["zh-Hans", "en"].map { language in
+                rootTarget(
+                    name: "09-report-long-lines-\(viewport.name)-\(language)",
+                    model: model,
+                    size: viewport.size,
+                    destination: .report,
+                    locale: Locale(identifier: language)
+                )
+            }
+        }
+    }
+
+    private static func capture(_ targets: [Target], outputDirectory: URL) async throws {
+        try FileManager.default.createDirectory(at: outputDirectory, withIntermediateDirectories: true)
+
         for target in targets {
             let frame = NSRect(origin: .zero, size: target.size)
-            let hostingView = NSHostingView(rootView: target.view)
+            let hostingView = NSHostingView(
+                rootView: target.view.frame(width: target.size.width, height: target.size.height)
+            )
+            hostingView.sizingOptions = []
             hostingView.frame = frame
             let window = NSWindow(
                 contentRect: frame,
@@ -169,13 +216,24 @@ enum UISnapshotCapture {
                 defer: false
             )
             window.isReleasedWhenClosed = false
+            if let appearance = target.appearance {
+                window.appearance = NSAppearance(named: appearance)
+            }
             window.contentView = hostingView
             window.orderOut(nil)
+            defer {
+                window.contentView = nil
+                window.close()
+            }
             hostingView.layoutSubtreeIfNeeded()
-            RunLoop.main.run(until: Date().addingTimeInterval(0.08))
+            await Task.yield()
+            try await Task.sleep(for: .milliseconds(200))
+            hostingView.layoutSubtreeIfNeeded()
+            await Task.yield()
             hostingView.layoutSubtreeIfNeeded()
 
-            guard let bitmap = hostingView.bitmapImageRepForCachingDisplay(in: frame) else {
+            guard hostingView.bounds.size == frame.size,
+                  let bitmap = hostingView.bitmapImageRepForCachingDisplay(in: frame) else {
                 throw CaptureError(name: target.name)
             }
             hostingView.cacheDisplay(in: frame, to: bitmap)
@@ -186,8 +244,6 @@ enum UISnapshotCapture {
                 to: outputDirectory.appendingPathComponent("\(target.name).png"),
                 options: .atomic
             )
-            window.contentView = nil
-            window.close()
         }
     }
 
@@ -246,20 +302,34 @@ enum UISnapshotCapture {
         )
     }
 
-    private static func wrappedRoot(
+    private static func rootTarget(
+        name: String,
         model: AppModel,
-        destination: AppDestination,
-        size: CGSize
-    ) -> AnyView {
+        size: CGSize,
+        destination: AppDestination = .dashboard,
+        workspace: MonitorWorkspace? = nil,
+        locale: Locale = AppLocalization.currentLocale,
+        colorScheme: ColorScheme = .light
+    ) -> Target {
         let router = AppNavigationRouter(destination: destination)
-        return AnyView(
+        if let workspace {
+            router.openMonitor(workspace)
+        }
+        let view = AnyView(
             RootView()
                 .environment(model)
                 .environment(router)
-                .environment(\.locale, AppLocalization.currentLocale)
+                .environment(\.locale, locale)
+                .environment(\.colorScheme, colorScheme)
                 .frame(width: size.width, height: size.height)
                 .background(Color(nsColor: .windowBackgroundColor))
-                .preferredColorScheme(.dark)
+                .preferredColorScheme(colorScheme)
+        )
+        return Target(
+            name: name,
+            view: view,
+            size: size,
+            appearance: colorScheme == .dark ? .darkAqua : .aqua
         )
     }
 

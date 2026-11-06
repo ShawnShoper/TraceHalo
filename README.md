@@ -10,7 +10,7 @@
 
 <p align="center">
   <img alt="Beta" src="https://img.shields.io/badge/status-Beta-f0a43c">
-  <img alt="Version" src="https://img.shields.io/badge/version-v000.001.000-4f8cff">
+  <img alt="Source version" src="https://img.shields.io/badge/source-v0.2.0-4f8cff">
   <img alt="macOS 14+" src="https://img.shields.io/badge/macOS-14%2B-202733">
   <img alt="License" src="https://img.shields.io/badge/license-Apache--2.0-56b37f">
 </p>
@@ -19,20 +19,20 @@
   <strong>English</strong> · <a href="README.zh-Hans.md">简体中文</a>
 </p>
 
-## Release v0.1.0 Beta
+## v0.2.0 Beta
 
-> [!IMPORTANT]
-> TraceHalo **v0.1.0 Beta (build 2)** is distributed as a Developer ID signed, Apple-notarized Universal 2 app for both Apple silicon and Intel Macs. Go to the [GitHub Releases download directory](https://github.com/ShawnShoper/TraceHalo/releases) and choose the `developer-id-notarized.dmg` package. ZIP, TAR.GZ, and SHA-256 verification files are also available. If the verified package is not listed yet, the public upload is not complete.
+The source for **v0.2.0 Beta (build 26)** is prepared for review and has been installed and verified locally. The public installer and Apple notarization are pending. [Upgrade notes in Simplified Chinese](docs/releases/v0.2.0.md)
 
 ## Your Mac, at a glance
 
-TraceHalo brings the information you normally have to look for across several macOS screens into one place. Keep a small live summary in the menu bar, then open the details only when you need them.
+TraceHalo brings system status and live readings into one home page. Select a resource card to expand its details in place, or keep a small live summary in the menu bar.
 
 - See CPU, GPU, memory, storage, network, fan, and temperature activity
 - Find busy CPU cores and high-usage processes
 - Check storage space, disk activity, and available device health information
 - Inspect displays, graphics, keyboards, mice, and trackpads
 - View charge, charging state, cycles, and battery health on MacBooks
+- Review app icons, versions, and disk usage, then choose what to keep when moving an app to the Trash
 - Choose exactly what appears in the menu bar
 - Switch between English and Simplified Chinese, light and dark appearance
 
@@ -42,11 +42,17 @@ TraceHalo does **not** clean disks, manage SSD TRIM, control fans, record keystr
 
 ## See TraceHalo
 
-### Configure a live menu bar monitor
+### Monitor your Mac in one place
 
-Choose the information you care about and preview the result immediately.
+Live readings, resource trends, and expandable details share one home page.
 
-![TraceHalo Live Monitor configuration](docs/images/en/live-monitor.png)
+![TraceHalo Live Monitor](docs/images/en/overview.png)
+
+### Configure the menu bar
+
+Open **Menu Bar Layout** from **Live Monitor** to choose what appears in the menu bar and preview the result immediately.
+
+![TraceHalo menu bar configuration](docs/images/en/live-monitor.png)
 
 ### Check storage and disk activity
 
@@ -73,22 +79,22 @@ Closing the main window does not stop the menu bar monitor.
 TraceHalo requires **macOS 14 or later**.
 
 1. Open the [Releases page](https://github.com/ShawnShoper/TraceHalo/releases).
-2. Download the newest `universal2-arm64-x86_64-developer-id-notarized.dmg` and its matching `.sha256` file. ZIP and TAR.GZ mirrors contain the same verified app.
-3. Verify the download as described in the [Distribution Guide](DISTRIBUTION.md), open the DMG, then drag **TraceHalo.app** into **Applications**.
+2. Choose a published release and download its `TraceHalo-<version>-arm64-x86_64.dmg` and matching `.sha256` file. Its ZIP and TAR.GZ archives contain the same verified app.
+3. Verify the download using the distribution guide. When upgrading, use **Quit TraceHalo Completely** before replacing the app. Open the DMG, then drag **TraceHalo.app** into **Applications**. [Distribution Guide](DISTRIBUTION.md)
 4. Open TraceHalo from the Applications folder.
 
-If the Releases page has no download yet, the public Beta package has not been uploaded.
+The Releases page shows which versions have a public installer.
 
 ### If macOS says Apple cannot verify TraceHalo
 
-Do not bypass the warning or disable macOS security. A current public Release must have a valid Developer ID signature, an accepted Apple notarization, a stapled ticket, and a matching SHA-256 file. Confirm that the download came from the official Releases page and that its checksum matches, then report the affected filename and macOS version if the warning remains.
+Do not bypass the warning or disable macOS security. A current public Release must have a valid Developer ID signature, accepted Apple notarizations, independently verifiable tickets for the DMG and its embedded app, and a matching SHA-256 file. Confirm that the download came from the official Releases page and that its checksum matches, then report the affected filename and macOS version if the warning remains.
 
-Maintainers can still create explicitly named `adhoc` packages with `make release-local`. Those builds are for local or controlled testing only and are not public Releases.
+Maintainers can create local test packages with `make release-local`. The accompanying `release-manifest.txt` identifies them by `Signing mode: adhoc`.
 
 ## First-time setup
 
-1. Open **Overview** and confirm that the Mac model and basic readings look correct.
-2. Open **Live Monitor**, choose the modules you want, and enable the menu bar display.
+1. Open **Live Monitor** and select a resource card to see its details.
+2. Open **Menu Bar Layout** from the top of **Live Monitor**, choose the modules you want, and enable the menu bar display.
 3. Open **Settings** to choose the language, appearance, refresh interval, and temperature unit.
 4. Open **Cooling**. If extra access is needed for fan or temperature readings, TraceHalo will explain the available read-only option.
 5. Close the main window and use TraceHalo from the menu bar.
@@ -129,7 +135,7 @@ Open **Settings → Application Language**. The default follows macOS; unsupport
 
 ## Privacy and support
 
-Normal monitoring is read-only. Features that can change the system always require a review and confirmation; related application files are unselected by default.
+Normal monitoring is read-only. System changes require review and confirmation. App removal keeps local data by default. If you choose to clean up local data, only checked files are moved to the Trash. When TraceHalo recognizes a vendor uninstaller, it shows the vendor’s recommended entry point.
 
 When reporting a problem, include your Mac model, macOS version, the affected page, and whether the value is missing or incorrect. Do not post unredacted serial numbers, network addresses, personal file paths, or system reports.
 

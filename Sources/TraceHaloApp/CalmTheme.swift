@@ -6,14 +6,14 @@ enum CalmTheme {
 
     /// The graphite palette is intentionally quieter than the system's default
     /// material stack. Thin borders provide the hierarchy, not card shadows.
-    static let canvas = Color(lightHex: "F3F5F7", darkHex: "0E1419")
-    static let canvasElevated = Color(lightHex: "F7F8FA", darkHex: "11191F")
-    static let sidebar = Color(lightHex: "E9EDF1", darkHex: "1C2429")
+    static let canvas = Color(lightHex: "F5F7FA", darkHex: "0E1419")
+    static let canvasElevated = Color(lightHex: "F8FAFC", darkHex: "11191F")
+    static let sidebar = Color(lightHex: "EDF1F6", darkHex: "1C2429")
     static let surface = Color(lightHex: "FFFFFF", darkHex: "171F25")
-    static let surfaceRaised = Color(lightHex: "F3F6F8", darkHex: "1B252C")
-    static let controlBackground = Color(lightHex: "E8EDF2", darkHex: "202A31")
-    static let sidebarHover = Color(lightHex: "DDE3E8", darkHex: "202830")
-    static let selectionBackground = Color(lightHex: "D9E6FB", darkHex: "244C8F")
+    static let surfaceRaised = Color(lightHex: "F1F5F9", darkHex: "1B252C")
+    static let controlBackground = Color(lightHex: "E8EEF5", darkHex: "202A31")
+    static let sidebarHover = Color(lightHex: "E3EAF3", darkHex: "202830")
+    static let selectionBackground = Color(lightHex: "DFEBFC", darkHex: "244C8F")
     static let selectionText = Color(lightHex: "174786", darkHex: "FFFFFF")
 
     static let primaryText = Color(lightHex: "172028", darkHex: "F1F5F7")
@@ -39,7 +39,7 @@ enum CalmTheme {
     static let pageGradient = LinearGradient(
         colors: [
             canvasElevated,
-            Color(lightHex: "F4F7F9", darkHex: "111A20"),
+            Color(lightHex: "F7F9FC", darkHex: "111A20"),
             canvas
         ],
         startPoint: .topLeading,

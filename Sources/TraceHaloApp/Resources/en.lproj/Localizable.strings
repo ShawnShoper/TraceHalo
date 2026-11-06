@@ -85,7 +85,7 @@
 "dashboard.event.fans.read.other" = "%@ fans read";
 "dashboard.event.interface.connected" = "%@ connected";
 "dashboard.event.interface.disconnected" = "%@ disconnected";
-"dashboard.event.memory.change" = "Memory pressure %@ %@";
+"dashboard.event.memory.change" = "Memory usage %@ %@ pp";
 "dashboard.event.speed" = "Speed %@ Mbps";
 "dashboard.fan.accessibility" = "%@ speed";
 "dashboard.fan.count" = "%ld fans · %@";
@@ -94,7 +94,9 @@
 "dashboard.fan.unavailable" = "Fan speed unavailable · %@";
 "dashboard.health.accessibility" = "%@, %@, %@";
 "dashboard.history.title" = "Resource History (%ld min)";
-"dashboard.memory.change" = "Memory pressure %@ %@";
+"dashboard.memory.change" = "Memory usage %@ %@ pp";
+"资源历史" = "Resource History";
+"与上次记录值相比" = "Compared with the last recorded level";
 "dashboard.memory.used" = "Used %@ / %@";
 "dashboard.minutes" = "%ld min";
 "dashboard.minutes.ago" = "%ld min ago";
@@ -165,6 +167,8 @@
 "tool.startup.ratio.other" = "%lld / %lld items";
 "tool.startup.staged.one" = "%lld change pending";
 "tool.startup.staged.other" = "%lld changes pending";
+"tool.uninstall.filesMoved.one" = "The %lld selected file was also moved to the Trash.";
+"tool.uninstall.filesMoved.other" = "The %lld selected files were also moved to the Trash.";
 "· %.0f 次/秒" = "· %.0f ops/s";
 "一款原创 macOS 系统状态工具。界面和数据层分离，可在演示数据与本机只读服务之间切换。" = "An original macOS system status tool with separate interface and data layers, supporting both demo data and read-only local services.";
 "上传" = "Upload";
@@ -224,9 +228,12 @@
 "内存使用估算 %@，已使用 %@，可用 %@" = "Memory usage estimate %@, %@ used, %@ available";
 "内存使用进程" = "Memory Processes";
 "内存占用估算" = "Memory Usage Estimate";
-"内存压力、用量、交换空间与进程" = "Memory pressure, usage, swap, and processes";
-"内存压力上升 8%" = "Memory Pressure Increased 8%";
-"内存压力保持稳定" = "Memory Pressure Is Stable";
+"内存占用" = "Memory Usage";
+"内存占用、交换空间与进程" = "Memory usage, swap, and processes";
+"内存占用上升 8 个百分点" = "Memory Usage Increased 8 pp";
+"内存占用保持稳定" = "Memory Usage Is Stable";
+"选择资源查看当前读数、趋势和详细信息。" = "Select a resource to see current readings, trends, and details.";
+"配置" = "Configure";
 "内存数据不可用" = "Memory data unavailable";
 "内存构成" = "Memory Breakdown";
 "内存架构" = "Memory Architecture";
@@ -313,7 +320,8 @@
 "外接" = "External";
 "外置存储" = "External Storage";
 "外观" = "Appearance";
-"大小未知" = "Size Unknown";
+"正在统计大小…" = "Calculating size…";
+"无法统计大小" = "Size unavailable";
 "大小未统计" = "Size Not Calculated";
 "存储" = "Storage";
 "存储与连接" = "Storage & Connectivity";
@@ -884,3 +892,121 @@
 "settings.usage.summary.battery" = "Current setting: Updates every %@ seconds; automatically slows down on battery";
 "settings.usage.summary.standard" = "Current setting: Updates every %@ seconds";
 "settings.usage.title" = "Usage Mode";
+
+"从这台 Mac 卸载不再使用的应用" = "Uninstall apps you no longer use on this Mac";
+"卸载未完成" = "Uninstall Incomplete";
+"需要管理员授权" = "Administrator Authorization Required";
+"管理员身份已验证" = "Administrator Authenticated";
+"验证管理员身份后，即可确认移到废纸篓。" = "Authenticate as an administrator to confirm moving the app to the Trash.";
+"申请权限…" = "Request Permission…";
+"继续授权" = "Continue Authorization";
+"重新授权…" = "Authorize Again…";
+"正在等待 macOS 验证管理员身份…" = "Waiting for macOS to authenticate an administrator…";
+"这个应用归管理员所有。首次使用时，请在系统设置批准 TraceHalo 卸载助手，再验证管理员身份。授权后会显示卸载确认。" = "This app is owned by an administrator. On first use, approve the TraceHalo uninstall helper in System Settings, then authenticate as an administrator. The uninstall confirmation appears after authorization.";
+"请在「系统设置 → 通用 → 登录项与扩展」批准 TraceHalo 卸载助手，返回后点「继续授权」。" = "Approve the TraceHalo uninstall helper in System Settings → General → Login Items & Extensions. Then return and choose Continue Authorization.";
+"请验证管理员身份，以继续卸载 %@。" = "Authenticate as an administrator to continue uninstalling %@.";
+"请先验证管理员身份，再确认卸载。" = "Authenticate as an administrator before confirming the uninstall.";
+"应用已变化，请刷新列表后重新选择。" = "The app has changed. Refresh the list and select it again.";
+"已取消管理员验证。" = "Administrator authentication was canceled.";
+"请先在系统设置中允许 TraceHalo 的卸载助手。" = "Allow the TraceHalo uninstall helper in System Settings first.";
+"当前 TraceHalo 缺少卸载助手文件，请重新安装最新版。" = "This copy of TraceHalo is missing the uninstall helper. Reinstall the latest version.";
+"macOS 未能注册卸载助手（%@）。请重试，或在 Finder 中卸载这个应用。" = "macOS couldn’t register the uninstall helper (%@). Try again or remove this app in Finder.";
+"macOS 尚未确认卸载助手已注册，请重新申请权限。" = "macOS hasn’t confirmed the uninstall helper registration yet. Request permission again.";
+"无法连接已启用的卸载助手。未移动任何项目，请重新授权或在 Finder 中卸载。" = "Couldn’t connect to the enabled uninstall helper. Nothing was moved. Request permission again or remove the app in Finder.";
+"请先申请启用卸载助手，再验证管理员身份。" = "Request permission to enable the uninstall helper, then authenticate as an administrator.";
+"macOS 未允许 TraceHalo 访问废纸篓。" = "macOS did not allow TraceHalo to access the Trash.";
+"无法访问废纸篓" = "Can’t Access Trash";
+"打开系统设置" = "Open System Settings";
+"正在检查卸载权限…" = "Checking uninstall permissions…";
+"要在 TraceHalo 内移到废纸篓，请在「系统设置 → 隐私与安全性 → 完全磁盘访问权限」启用 TraceHalo，再返回点「继续授权」。也可以在 Finder 中选中应用，按 ⌘⌫ 移到废纸篓。" = "To move this app to the Trash from TraceHalo, enable TraceHalo in System Settings → Privacy & Security → Full Disk Access. Then return and choose Continue Authorization. You can also select the app in Finder and press ⌘⌫.";
+"macOS 未授予卸载所需的管理员权限（%d）。" = "macOS did not grant the administrator authorization needed for this uninstall (%d).";
+"本次卸载的管理员授权已失效，请重新验证。" = "Administrator authorization for this uninstall has expired. Authenticate again.";
+"待卸载应用已变更，请重新选择并验证。" = "The app selected for uninstall has changed. Select it and authenticate again.";
+"在左侧选择应用，查看大小和卸载选项。" = "Select an app on the left to see its size and uninstall options.";
+"可选择保留或清理本机数据。" = "Choose whether to keep or clean up local data.";
+"卸载…" = "Uninstall…";
+"推荐使用厂商卸载器" = "Vendor uninstaller recommended";
+"卸载器位置" = "Uninstaller Location";
+"应用已移除，部分文件仍在原处" = "App moved to Trash, some files remain";
+"macOS 拒绝移动这个应用。本次移入废纸篓 0 项。可在 Finder 中将应用移到废纸篓，按系统提示验证。" = "macOS blocked the move. This attempt moved 0 items. Move the app to Trash in Finder and authenticate if prompted.";
+"错误详情" = "Error Details";
+"发现厂商卸载器" = "Vendor Uninstaller Found";
+"正在检查厂商卸载器…" = "Checking for a Vendor Uninstaller…";
+"建议使用厂商卸载器卸载 %@。" = "Use the vendor’s uninstaller to remove %@.";
+"建议在 Docker Desktop 中选择「疑难解答 → 卸载」。" = "In Docker Desktop, choose Troubleshoot → Uninstall.";
+"打开厂商卸载器" = "Open Vendor Uninstaller";
+"打开 Docker Desktop" = "Open Docker Desktop";
+"使用 TraceHalo 卸载…" = "Uninstall with TraceHalo…";
+"无法打开厂商卸载器" = "Could Not Open Vendor Uninstaller";
+"卸载器已移动或变更，请重新查看应用详情。" = "The uninstaller moved or changed. Review the app details again.";
+"卸载%@" = "Uninstall %@";
+"卸载%@…" = "Uninstall %@…";
+"卸载会把应用移到废纸篓。你可以选择怎么处理本机数据。" = "Uninstalling moves the app to the Trash. You can choose what to do with its local data.";
+"选择要卸载的应用。" = "Choose an app to uninstall.";
+"%@已移到废纸篓" = "%@ Was Moved to the Trash";
+"本机数据已保留。" = "Local app data was kept.";
+"需要找回应用时，可以到废纸篓中恢复。" = "You can restore the app from the Trash if you need it again.";
+"%@将移到废纸篓。" = "%@ will be moved to the Trash.";
+"确认将「%@」移到废纸篓？" = "Move “%@” to the Trash?";
+"确认移除" = "Confirm Removal";
+"仅移除应用，保留本机数据。" = "The app will be removed and its local data will be kept.";
+"选中的本机文件（%lld 项）也会移到废纸篓。" = "The selected local items (%lld) will also move to the Trash.";
+"本机数据怎么处理？" = "What should happen to local app data?";
+"保留本机数据" = "Keep Local Data";
+"重装时可能还能用原来的设置。" = "Your settings may still be available if you reinstall the app.";
+"同时清理本机数据" = "Also Remove Local Data";
+"把选中的本机文件也移到废纸篓。" = "Move the local files you select to the Trash, too.";
+"没有找到可一起清理的本机文件。" = "No related local files were found.";
+"选择要一起清理的文件" = "Choose Files to Remove";
+"正在查找可一起清理的文件" = "Looking for related files";
+"这些文件可能与%@有关。未勾选的文件会保留。" = "These files may be related to %@. Unchecked files will be kept.";
+"重新查找" = "Scan Again";
+"全选" = "Select All";
+"取消全选" = "Deselect All";
+"文件详情" = "File Details";
+"查看%@的文件详情" = "File Details for %@";
+"设置和其他本机数据" = "Settings and Other Local Data";
+"可能共享的应用数据" = "Possibly Shared App Data";
+"应用设置" = "App Settings";
+"自动化文件" = "Automation Files";
+"应用数据文件" = "App Data Files";
+"可能包含应用在这台 Mac 上保存的内容" = "May contain data the app saved on this Mac";
+"可能包含应用用到的脚本" = "May contain scripts used by the app";
+"移到废纸篓（%lld 项）" = "Move %lld Items to Trash";
+"应用管理正在处理另一项操作，请稍候。" = "Another application operation is in progress. Try again in a moment.";
+
+"最近更新" = "Last Updated";
+
+"核心与进程" = "Cores & Processes";
+
+"内存明细" = "Memory Details";
+
+"图形详情" = "Graphics Details";
+
+"磁盘明细" = "Disk Details";
+
+"传感器明细" = "Sensors & Fans";
+
+"收起" = "Collapse";
+
+"正在积累趋势" = "Collecting Trend Data";
+
+"暂无可用数据" = "No Data Available";
+
+"满电" = "Full";
+
+"电池与电源" = "Battery & Power";
+
+"已连接电源" = "Connected to Power";
+
+"使用电池" = "Using Battery";
+
+"dashboard.storage.summary" = "Available space · %@ used";
+
+"电源状态不可用" = "Power Source Unavailable";
+
+"菜单栏窗口不透明度" = "Menu Window Opacity";
+
+"拖动时真实菜单栏窗口与右侧预览会立即更新" = "The real menu window and preview update as you drag.";
+
+"macOS 已启用减少透明度，实际显示固定为 100%" = "Reduce Transparency is enabled, so the actual value is fixed at 100%.";

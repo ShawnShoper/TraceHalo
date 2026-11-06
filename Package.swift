@@ -11,7 +11,8 @@ let package = Package(
     products: [
         .library(name: "TraceHaloCore", targets: ["TraceHaloCore"]),
         .executable(name: "TraceHalo", targets: ["TraceHaloApp"]),
-        .executable(name: "TraceHaloSensorHelper", targets: ["TraceHaloSensorHelper"])
+        .executable(name: "TraceHaloSensorHelper", targets: ["TraceHaloSensorHelper"]),
+        .executable(name: "TraceHaloUninstallHelper", targets: ["TraceHaloUninstallHelper"])
     ],
     targets: [
         .target(
@@ -35,6 +36,10 @@ let package = Package(
         ),
         .executableTarget(
             name: "TraceHaloSensorHelper",
+            dependencies: ["TraceHaloCore"]
+        ),
+        .executableTarget(
+            name: "TraceHaloUninstallHelper",
             dependencies: ["TraceHaloCore"]
         ),
         .testTarget(

@@ -96,6 +96,11 @@
 "uninstall.partialCompletion" = "已将 %ld/%ld 个项目移到废纸篓，随后停止：%@。可从废纸篓恢复已移动项目。";
 "uninstall.partialCompletion.one" = "已将 %ld/%ld 个项目移到废纸篓，随后停止：%@。可从废纸篓恢复已移动项目。";
 "uninstall.partialCompletion.other" = "已将 %ld/%ld 个项目移到废纸篓，随后停止：%@。可从废纸篓恢复已移动项目。";
+"uninstall.noItemsMoved" = "%@。本次未移动任何项目。";
+"uninstall.appMoveUnconfirmed" = "暂时无法确认「%@」是否已移到废纸篓。本机数据已保留。请检查废纸篓后再试。";
+"uninstall.cleanupIncomplete" = "应用已移到废纸篓，已清理 %ld/%ld 项所选文件。%@。清理已停止。";
+"uninstall.movePermissionDenied" = "需要额外权限才能将“%@”移到废纸篓";
+"uninstall.moveError" = "未能将“%@”移到废纸篓（%@）";
 "uninstall.targetChanged" = "目标在确认后发生变化，已停止移除：%@";
 "uninstall.unscannedAssociation" = "卸载计划包含未经扫描确认的关联文件：%@";
 "uninstall.targetMissing" = "目标不存在：%@";

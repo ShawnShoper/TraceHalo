@@ -19,12 +19,12 @@ PATCH_VALUE=$((10#${PATCH}))
 
 for VALUE in "${MAJOR_VALUE}" "${MINOR_VALUE}" "${PATCH_VALUE}"; do
     if (( VALUE > 999 )); then
-        print -u2 "Each public version segment must be between 000 and 999."
+        print -u2 "Each public version segment must be between 0 and 999."
         exit 66
     fi
 done
 
-printf 'v%03d.%03d.%03d\n' \
+printf 'v%d.%d.%d\n' \
     "${MAJOR_VALUE}" \
     "${MINOR_VALUE}" \
     "${PATCH_VALUE}"

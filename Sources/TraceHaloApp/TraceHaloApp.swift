@@ -1,4 +1,5 @@
 import AppKit
+import Combine
 import SwiftUI
 import TraceHaloCore
 
@@ -8,7 +9,7 @@ enum TraceHaloAppearanceMode: String, CaseIterable, Sendable {
     case dark
 
     static let storageKey = "appearanceMode"
-    static let defaultValue: Self = .system
+    static let defaultValue: Self = .light
 
     init(storedValue: String?) {
         self = storedValue.flatMap(Self.init(rawValue:)) ?? .defaultValue
@@ -19,6 +20,15 @@ enum TraceHaloAppearanceMode: String, CaseIterable, Sendable {
         case .system: nil
         case .light: .aqua
         case .dark: .darkAqua
+        }
+    }
+
+    func colorScheme(following systemAppearance: NSAppearance) -> ColorScheme {
+        switch self {
+        case .system:
+            systemAppearance.bestMatch(from: [.aqua, .darkAqua]) == .darkAqua ? .dark : .light
+        case .light: .light
+        case .dark: .dark
         }
     }
 }
@@ -82,8 +92,6 @@ enum TraceHaloAppearancePolicy {
 struct TraceHaloApp: App {
     @NSApplicationDelegateAdaptor(TraceHaloApplicationDelegate.self)
     private var appDelegate
-    @AppStorage(TraceHaloAppearanceMode.storageKey)
-    private var appearanceMode = TraceHaloAppearanceMode.defaultValue.rawValue
     @AppStorage(AppLanguagePreference.storageKey)
     private var appLanguagePreference = AppLanguagePreference.defaultValue.rawValue
     private let lockedCanvas: MainWindowLayoutPolicy.LockedCanvas
@@ -96,19 +104,13 @@ struct TraceHaloApp: App {
     }
 
     var body: some Scene {
-        Window("TraceHalo", id: "main") {
+        Window("TraceHalo", id: TraceHaloWindowIdentity.main.rawValue) {
             FixedWindowCanvasRoot(contentSize: lockedCanvas.contentSize) {
                 RootView()
                     .environment(model)
                     .environment(navigationRouter)
                     .traceHaloLanguageEnvironment()
             }
-                .background(
-                    TraceHaloWindowConfigurator(
-                        contentSize: lockedCanvas.contentSize,
-                        appearanceMode: TraceHaloAppearanceMode(storedValue: appearanceMode)
-                    )
-                )
                 .background(
                     MenuBarWindowActionBridge(
                         controller: appDelegate.menuBarController
@@ -143,18 +145,11 @@ struct TraceHaloApp: App {
         }
 
         Settings {
-            FixedWindowCanvasRoot(contentSize: lockedCanvas.contentSize) {
+            FixedWindowCanvasRoot(kind: .settings, contentSize: lockedCanvas.contentSize) {
                 SettingsView(isStandalone: true)
                     .environment(model)
                     .traceHaloLanguageEnvironment()
             }
-                .background(
-                    TraceHaloWindowConfigurator(
-                        kind: .settings,
-                        contentSize: lockedCanvas.contentSize,
-                        appearanceMode: TraceHaloAppearanceMode(storedValue: appearanceMode)
-                    )
-                )
                 .traceHaloFocusAppearance()
         }
         .defaultSize(
@@ -180,16 +175,41 @@ struct TraceHaloApp: App {
 }
 
 struct FixedWindowCanvasRoot<Content: View>: View {
+    @AppStorage(TraceHaloAppearanceMode.storageKey)
+    private var appearanceMode = TraceHaloAppearanceMode.defaultValue.rawValue
+    @State private var systemAppearance = NSApplication.shared.effectiveAppearance
+    private let kind: TraceHaloWindowConfigurator.Kind
     let contentSize: CGSize
     private let content: Content
 
-    init(contentSize: CGSize, @ViewBuilder content: () -> Content) {
+    init(
+        kind: TraceHaloWindowConfigurator.Kind = .main,
+        contentSize: CGSize,
+        @ViewBuilder content: () -> Content
+    ) {
+        self.kind = kind
         self.contentSize = contentSize
         self.content = content()
     }
 
     var body: some View {
+        let mode = TraceHaloAppearanceMode(storedValue: appearanceMode)
         content.frame(width: contentSize.width, height: contentSize.height)
+            .background(
+                TraceHaloWindowConfigurator(
+                    kind: kind,
+                    contentSize: contentSize,
+                    appearanceMode: mode
+                )
+            )
+            // A SwiftUI scene can retain its previous presentation scheme when
+            // the preference becomes nil. Resolve Follow System explicitly.
+            .preferredColorScheme(mode.colorScheme(following: systemAppearance))
+            .onReceive(
+                NSApplication.shared.publisher(for: \.effectiveAppearance).receive(on: RunLoop.main)
+            ) { appearance in
+                systemAppearance = appearance
+            }
     }
 }
 
@@ -201,8 +221,8 @@ private struct MenuBarWindowActionBridge: View {
         Color.clear
             .frame(width: 0, height: 0)
             .onAppear {
-                controller.setOpenMainWindowAction {
-                    openWindow(id: "main")
+                controller.setOpenMainWindowAction { [openWindow] in
+                    openWindow(id: TraceHaloWindowIdentity.main.rawValue)
                 }
             }
             .accessibilityHidden(true)
@@ -468,7 +488,7 @@ enum MainWindowLayoutPolicy {
     }
 }
 
-private struct TraceHaloWindowConfigurator: NSViewRepresentable {
+struct TraceHaloWindowConfigurator: NSViewRepresentable {
     enum Kind {
         case main
         case settings

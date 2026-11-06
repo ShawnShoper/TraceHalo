@@ -10,7 +10,7 @@
 
 <p align="center">
   <img alt="Beta" src="https://img.shields.io/badge/状态-Beta-f0a43c">
-  <img alt="版本" src="https://img.shields.io/badge/版本-v000.001.000-4f8cff">
+  <img alt="源码版本" src="https://img.shields.io/badge/源码版本-v0.2.0-4f8cff">
   <img alt="macOS 14+" src="https://img.shields.io/badge/macOS-14%2B-202733">
   <img alt="许可证" src="https://img.shields.io/badge/许可证-Apache--2.0-56b37f">
 </p>
@@ -19,20 +19,20 @@
   <a href="README.md">English</a> · <strong>简体中文</strong>
 </p>
 
-## Release v0.1.0 Beta
+## v0.2.0 Beta
 
-> [!IMPORTANT]
-> TraceHalo **v0.1.0 Beta（build 2）**以 Developer ID 签名、Apple 公证通过的 Universal 2 应用形式发布，同时支持 Apple 芯片与 Intel Mac。请前往 [GitHub Releases 下载目录](https://github.com/ShawnShoper/TraceHalo/releases)，优先下载文件名包含 `developer-id-notarized.dmg` 的安装包；同时提供 ZIP、TAR.GZ 和 SHA-256 校验文件。如果尚未看到已验证安装包，说明公开上传还未完成。
+**v0.2.0 Beta（build 26）**已完成本机安装验证，源码待合并。Apple 公证与公开安装包发布待完成。[升级说明](docs/releases/v0.2.0.md)
 
 ## 一眼看懂你的 Mac
 
-TraceHalo 把原本分散在多个 macOS 页面里的系统信息集中到一起。你可以在菜单栏常驻一小块实时状态，需要时再打开详细信息。
+TraceHalo 在「实时监控」首页集中显示系统状态和实时读数。点卡片即可在首页展开详情，也可以在菜单栏常驻一小块实时状态。
 
 - 查看 CPU、GPU、内存、存储、网络、风扇和温度
 - 找到高负载 CPU 核心和高占用进程
 - 查看磁盘空间、读写活动和系统能够提供的设备健康信息
 - 查看显示器、显卡、键盘、鼠标和触控板信息
 - 在 MacBook 上查看电量、充电状态、循环次数和电池健康
+- 查看应用图标、版本和磁盘占用，卸载时选择保留哪些本机数据
 - 自由选择菜单栏显示哪些信息
 - 支持简体中文、英文，以及浅色和深色外观
 
@@ -42,17 +42,11 @@ TraceHalo **不包含**磁盘清理、SSD TRIM 管理、风扇控制、按键记
 
 ## 界面预览
 
-### 查看 Mac 整体状态
-
-首页把 CPU、GPU、内存、存储、网络和散热集中显示在一起。
-
-![TraceHalo 系统概览](docs/images/zh-Hans/overview.png)
-
 ### 自定义菜单栏监控
 
-选择自己关心的信息，右侧会立即预览最终效果。
+从「实时监控」顶部打开「菜单栏布局」，选择要显示的内容并查看预览。
 
-![TraceHalo 实时监控配置](docs/images/zh-Hans/live-monitor.png)
+![TraceHalo 菜单栏配置](docs/images/zh-Hans/live-monitor.png)
 
 ### 查看存储和磁盘活动
 
@@ -73,22 +67,22 @@ TraceHalo **不包含**磁盘清理、SSD TRIM 管理、风扇控制、按键记
 TraceHalo 需要 **macOS 14 或更高版本**。
 
 1. 打开 [Releases 下载页面](https://github.com/ShawnShoper/TraceHalo/releases)。
-2. 下载最新的 `universal2-arm64-x86_64-developer-id-notarized.dmg` 及其同名 `.sha256` 文件。ZIP 和 TAR.GZ 镜像包含同一个已验证 App。
-3. 按[分发指南](DISTRIBUTION.md)校验下载文件，打开 DMG，再把 **TraceHalo.app** 拖入“应用程序”文件夹。
+2. 选择已公开发布的版本，下载 `TraceHalo-<version>-arm64-x86_64.dmg` 及其同名 `.sha256` 文件。同一版本的 ZIP 和 TAR.GZ 包含同一个已验证 App。
+3. 按分发指南校验下载文件。升级时，先用「彻底退出 TraceHalo」关闭旧版。打开 DMG 后，把 **TraceHalo.app** 拖入「应用程序」文件夹。[分发指南](DISTRIBUTION.md)
 4. 从“应用程序”文件夹启动 TraceHalo。
 
-如果 Releases 页面暂时没有安装包，说明公开 Beta 还没有上传。
+已公开发布安装包的版本以 Releases 页面为准。
 
 ### 遇到“Apple 无法验证 TraceHalo”怎么办？
 
-不要绕过警告，也不要关闭 macOS 安全功能。当前公开 Release 必须同时具备有效 Developer ID 签名、Apple 公证 `Accepted`、已装订 ticket 和匹配的 SHA-256。请先确认文件来自官方 Releases 页面且校验值一致；如果仍出现警告，请提交具体文件名和 macOS 版本。
+不要绕过警告，也不要关闭 macOS 安全功能。当前公开 Release 必须同时具备有效 Developer ID 签名、App 与 DMG 两阶段 Apple 公证 `Accepted`、DMG 及其内部 App 可独立验证的 ticket，以及匹配的 SHA-256。请先确认文件来自官方 Releases 页面且校验值一致；如果仍出现警告，请提交具体文件名和 macOS 版本。
 
-维护者仍可通过 `make release-local` 生成文件名明确包含 `adhoc` 的本地测试包。这类构建只用于本机或受控测试，不属于公开 Release。
+维护者可通过 `make release-local` 生成本地测试包。随包生成的 `release-manifest.txt` 会记录 `Signing mode: adhoc`。
 
 ## 第一次使用
 
-1. 打开“概览”，确认 Mac 型号和基础数据是否正确。
-2. 打开“实时监控”，选择想展示的模块，然后开启菜单栏显示。
+1. 打开「实时监控」，点资源卡片查看详情。
+2. 从「实时监控」顶部打开「菜单栏布局」，选择要展示的模块，再开启菜单栏显示。
 3. 打开“设置”，选择应用语言、外观、刷新频率和温度单位。
 4. 打开“散热”。如果风扇或温度需要额外访问，TraceHalo 会说明可以启用的只读方案。
 5. 关闭主窗口，之后可以直接从菜单栏使用 TraceHalo。
@@ -129,7 +123,7 @@ TraceHalo 需要 **macOS 14 或更高版本**。
 
 ## 隐私与问题反馈
 
-普通监控功能只读。可能修改系统的功能一定会先让你审阅并确认，应用关联文件默认不勾选。
+普通监控功能只读。系统修改需要先审阅并确认。卸载默认保留本机数据，选择清理时只把勾选的文件移到废纸篓。识别到厂商卸载器时，TraceHalo 会提示厂商提供的卸载入口。
 
 反馈问题时，请提供 Mac 型号、macOS 版本、发生问题的页面，以及数据是“缺失”还是“错误”。请勿公开未经脱敏的序列号、网络地址、个人文件路径或系统报告。
 

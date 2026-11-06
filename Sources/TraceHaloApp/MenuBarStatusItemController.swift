@@ -548,24 +548,20 @@ final class MenuBarStatusItemController: NSObject, NSPopoverDelegate {
 
     private func presentMainWindow(navigatingTo destination: AppDestination?) {
         closePopover()
-        NSApplication.shared.setActivationPolicy(.regular)
+        let application = NSApplication.shared
+        application.setActivationPolicy(.regular)
         if let destination {
             navigationRouter.navigate(to: destination)
         }
         if let window = mainWindow {
+            if window.isMiniaturized {
+                window.deminiaturize(nil)
+            }
             window.makeKeyAndOrderFront(nil)
         } else {
             openMainWindowAction?()
         }
-        NSApplication.shared.activate(ignoringOtherApps: true)
-
-        // A SwiftUI Window scene can be recreated asynchronously after its red
-        // close button was used. Re-check once so a stale openWindow closure
-        // cannot strand a newly-created window behind other apps.
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { [weak self] in
-            self?.mainWindow?.makeKeyAndOrderFront(nil)
-            NSApplication.shared.activate(ignoringOtherApps: true)
-        }
+        application.activate(ignoringOtherApps: true)
     }
 
     private var mainWindow: NSWindow? {

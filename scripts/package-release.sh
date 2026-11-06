@@ -11,9 +11,6 @@ RELEASE_CHANNEL="$(
     /usr/libexec/PlistBuddy -c 'Print :TraceHaloReleaseChannel' "${INFO_PLIST}" \
         2>/dev/null || true
 )"
-SAFE_RELEASE_CHANNEL="$(
-    print -r -- "${RELEASE_CHANNEL}" | tr -cd '[:alnum:]._-'
-)"
 PUBLIC_VERSION="$("${SCRIPT_DIR}/public-version.sh" "${VERSION}")"
 TEAM_ID="${TRACEHALO_TEAM_ID:-4DXU5FSLLY}"
 NOTARY_PROFILE="${TRACEHALO_NOTARY_PROFILE:-tracehalo-notary}"
@@ -63,38 +60,70 @@ mkdir -p "${PACKAGE_DIR}/.build" "${DIST_ROOT}"
 WORK_ROOT="$(mktemp -d "${PACKAGE_DIR}/.build/tracehalo-release.XXXXXX")"
 MOUNT_PATH="${WORK_ROOT}/mounted-dmg"
 DMG_MOUNTED=0
+NOTARY_STARTED=0
+NOTARY_DIAGNOSTICS_PERSISTED=0
+CURRENT_RELEASE_STAGE="initialization"
+PARTIAL_DIST_DIR=""
 
 cleanup_work_root() {
+    local exit_status=$?
+    if [[ "${exit_status}" != "0" \
+        && "${NOTARY_STARTED}" == "1" \
+        && "${NOTARY_DIAGNOSTICS_PERSISTED}" == "0" ]]; then
+        persist_notary_diagnostics \
+            "Release failed during ${CURRENT_RELEASE_STAGE} (exit ${exit_status})."
+    fi
     if [[ "${DMG_MOUNTED}" == "1" ]]; then
         hdiutil detach "${MOUNT_PATH}" -force >/dev/null 2>&1 || true
+    fi
+    if [[ -n "${PARTIAL_DIST_DIR}" && -d "${PARTIAL_DIST_DIR}" ]]; then
+        # This exact hidden directory is created below by this script only.
+        rm -rf "${PARTIAL_DIST_DIR}"
     fi
     # WORK_ROOT is always created by this script beneath Package/.build.
     rm -rf "${WORK_ROOT}"
 }
 trap cleanup_work_root EXIT
 
-NOTARY_RESULT="${WORK_ROOT}/notarization-result.json"
-NOTARY_LOG="${WORK_ROOT}/notarization-log.json"
-NOTARY_STDERR="${WORK_ROOT}/notarization-stderr.txt"
 NOTARY_PROFILE_CHECK="${WORK_ROOT}/notary-profile-check.json"
-SUBMISSION_ID=""
+NOTARY_PROFILE_STDERR="${WORK_ROOT}/notary-profile-stderr.txt"
+APP_NOTARY_ARCHIVE="${WORK_ROOT}/TraceHalo-app-notary.zip"
+APP_NOTARY_RESULT="${WORK_ROOT}/app-notarization-result.json"
+APP_NOTARY_LOG="${WORK_ROOT}/app-notarization-log.json"
+APP_NOTARY_STDERR="${WORK_ROOT}/app-notarization-stderr.txt"
+APP_NOTARY_STATUS=""
+APP_SUBMISSION_ID=""
+DMG_NOTARY_RESULT="${WORK_ROOT}/dmg-notarization-result.json"
+DMG_NOTARY_LOG="${WORK_ROOT}/dmg-notarization-log.json"
+DMG_NOTARY_STDERR="${WORK_ROOT}/dmg-notarization-stderr.txt"
+DMG_NOTARY_STATUS=""
+DMG_SUBMISSION_ID=""
 
 persist_notary_diagnostics() {
     local reason="$1"
-    local failed_dist
-    failed_dist="$(mktemp -d \
-        "${DIST_ROOT}/${PUBLIC_VERSION}-${RELEASE_STAMP}-notary-failed.XXXXXX")"
+    local failed_dist=""
+    NOTARY_DIAGNOSTICS_PERSISTED=1
+    if ! failed_dist="$(mktemp -d \
+        "${DIST_ROOT}/${PUBLIC_VERSION}-${RELEASE_STAMP}-notary-failed.XXXXXX")"; then
+        print -u2 -- "${reason}"
+        print -u2 -- "Unable to create a notarization diagnostics directory."
+        return 0
+    fi
 
     for diagnostic in \
-        "${NOTARY_RESULT}" \
-        "${NOTARY_LOG}" \
-        "${NOTARY_STDERR}" \
-        "${NOTARY_PROFILE_CHECK}"; do
+        "${NOTARY_PROFILE_CHECK}" \
+        "${NOTARY_PROFILE_STDERR}" \
+        "${APP_NOTARY_RESULT}" \
+        "${APP_NOTARY_LOG}" \
+        "${APP_NOTARY_STDERR}" \
+        "${DMG_NOTARY_RESULT}" \
+        "${DMG_NOTARY_LOG}" \
+        "${DMG_NOTARY_STDERR}"; do
         if [[ -f "${diagnostic}" ]]; then
-            cp "${diagnostic}" "${failed_dist}/${diagnostic:t}"
+            cp "${diagnostic}" "${failed_dist}/${diagnostic:t}" || true
         fi
     done
-    print -r -- "${reason}" > "${failed_dist}/failure-reason.txt"
+    print -r -- "${reason}" > "${failed_dist}/failure-reason.txt" || true
     print -u2 -- "${reason}"
     print -u2 -- "Notarization diagnostics: ${failed_dist}"
 }
@@ -129,7 +158,7 @@ if [[ "${REQUESTED_MODE}" == "developer-id" && "${NOTARIZE}" == "1" ]]; then
         --keychain-profile "${NOTARY_PROFILE}" \
         --output-format json \
         > "${NOTARY_PROFILE_CHECK}" \
-        2> "${NOTARY_STDERR}"; then
+        2> "${NOTARY_PROFILE_STDERR}"; then
         persist_notary_diagnostics \
             "Notary keychain profile '${NOTARY_PROFILE}' is missing or invalid. Configure it with 'xcrun notarytool store-credentials'."
         exit 5
@@ -139,31 +168,19 @@ fi
 if [[ "${RELEASE_ARCH}" == "universal" ]]; then
     UNIVERSAL_BUILD=1
     TARGET_ARCH=native
-    ARCH_LABEL="universal2-arm64-x86_64"
+    ARCH_LABEL="arm64-x86_64"
 else
     UNIVERSAL_BUILD=0
     TARGET_ARCH=arm64
     ARCH_LABEL="arm64"
 fi
 
-VERSION_LABEL="${PUBLIC_VERSION}"
-if [[ -n "${SAFE_RELEASE_CHANNEL}" ]]; then
-    VERSION_LABEL="${VERSION_LABEL}-${SAFE_RELEASE_CHANNEL}"
-fi
-VERSION_LABEL="${VERSION_LABEL}-build${BUILD_NUMBER}"
-
 if [[ "${REQUESTED_MODE}" == "developer-id" ]]; then
     SIGNING_LABEL="developer-id"
 else
     SIGNING_LABEL="adhoc"
 fi
-if [[ "${NOTARIZE}" == "1" ]]; then
-    VERIFICATION_LABEL="${SIGNING_LABEL}-notarized"
-else
-    VERIFICATION_LABEL="${SIGNING_LABEL}-UNNOTARIZED"
-fi
-
-PAYLOAD_NAME="TraceHalo-${VERSION_LABEL}-macOS-${ARCH_LABEL}-${VERIFICATION_LABEL}"
+PAYLOAD_NAME="TraceHalo-${VERSION}-${ARCH_LABEL}"
 PAYLOAD_ROOT="${WORK_ROOT}/${PAYLOAD_NAME}"
 APP_PATH="${PAYLOAD_ROOT}/TraceHalo.app"
 DMG_STAGE="${WORK_ROOT}/dmg-stage"
@@ -186,6 +203,7 @@ cp "${INSTALL_GUIDE}" "${PAYLOAD_ROOT}/安装说明.md"
 
 MAIN_EXECUTABLE="${APP_PATH}/Contents/MacOS/TraceHalo"
 SENSOR_HELPER="${APP_PATH}/Contents/Resources/TraceHaloSensorHelper"
+UNINSTALL_HELPER="${APP_PATH}/Contents/Resources/TraceHaloUninstallHelper"
 
 verify_architectures() {
     local executable="$1"
@@ -209,11 +227,11 @@ verify_developer_signature() {
 
     codesign --verify --strict --verbose=4 "${item}"
     details="$(codesign -d --verbose=4 "${item}" 2>&1)"
-    print -r -- "${details}" | grep -F -- "Identifier=${expected_identifier}" >/dev/null \
+    print -r -- "${details}" | grep -Fx -- "Identifier=${expected_identifier}" >/dev/null \
         || fail "Unexpected signing identifier for ${item}." 3
     print -r -- "${details}" | grep -F -- "Authority=Developer ID Application:" >/dev/null \
         || fail "Developer ID authority is missing for ${item}." 3
-    print -r -- "${details}" | grep -F -- "TeamIdentifier=${TEAM_ID}" >/dev/null \
+    print -r -- "${details}" | grep -Fx -- "TeamIdentifier=${TEAM_ID}" >/dev/null \
         || fail "TeamIdentifier ${TEAM_ID} is missing for ${item}." 3
     print -r -- "${details}" | grep -E -- 'flags=.*\(runtime\)' >/dev/null \
         || fail "Hardened Runtime is missing for ${item}." 3
@@ -223,17 +241,82 @@ verify_developer_signature() {
 
 verify_architectures "${MAIN_EXECUTABLE}"
 verify_architectures "${SENSOR_HELPER}"
+verify_architectures "${UNINSTALL_HELPER}"
 codesign --verify --deep --strict --verbose=4 "${APP_PATH}"
 
 if [[ "${REQUESTED_MODE}" == "developer-id" ]]; then
     verify_developer_signature \
         "${SENSOR_HELPER}" \
         "com.tseai.tracehalo.sensor-helper"
+    verify_developer_signature \
+        "${UNINSTALL_HELPER}" \
+        "com.tseai.tracehalo.uninstall-helper"
     verify_developer_signature "${APP_PATH}" "com.tseai.tracehalo"
 fi
 
+if [[ "${NOTARIZE}" == "1" ]]; then
+    # notarytool accepts ZIP, DMG, or flat PKG containers, not a bare .app.
+    # Notarize and staple the app before copying it into any public archive.
+    ditto -c -k --sequesterRsrc --keepParent \
+        "${APP_PATH}" \
+        "${APP_NOTARY_ARCHIVE}"
+    NOTARY_STARTED=1
+    CURRENT_RELEASE_STAGE="app notarization submission"
+    print "Submitting signed app to Apple notarization with keychain profile '${NOTARY_PROFILE}'..."
+    APP_SUBMIT_EXIT=0
+    if xcrun notarytool submit "${APP_NOTARY_ARCHIVE}" \
+        --keychain-profile "${NOTARY_PROFILE}" \
+        --wait \
+        --timeout "${NOTARY_TIMEOUT}" \
+        --output-format json \
+        > "${APP_NOTARY_RESULT}" \
+        2> "${APP_NOTARY_STDERR}"; then
+        APP_SUBMIT_EXIT=0
+    else
+        APP_SUBMIT_EXIT=$?
+    fi
+
+    APP_NOTARY_STATUS="$(
+        plutil -extract status raw -o - "${APP_NOTARY_RESULT}" 2>/dev/null || true
+    )"
+    APP_SUBMISSION_ID="$(
+        plutil -extract id raw -o - "${APP_NOTARY_RESULT}" 2>/dev/null || true
+    )"
+    if [[ -n "${APP_SUBMISSION_ID}" ]]; then
+        xcrun notarytool log "${APP_SUBMISSION_ID}" \
+            --keychain-profile "${NOTARY_PROFILE}" \
+            "${APP_NOTARY_LOG}" \
+            2>> "${APP_NOTARY_STDERR}" || true
+    fi
+
+    if [[ "${APP_SUBMIT_EXIT}" != "0" ]]; then
+        persist_notary_diagnostics \
+            "Apple app notarization command failed (exit ${APP_SUBMIT_EXIT}, submission ${APP_SUBMISSION_ID:-unknown}); it will not be resubmitted automatically."
+        exit 6
+    fi
+
+    if [[ "${APP_NOTARY_STATUS}" != "Accepted" ]]; then
+        persist_notary_diagnostics \
+            "Apple notarization did not accept the app: ${APP_NOTARY_STATUS:-unknown status}."
+        exit 7
+    fi
+
+    CURRENT_RELEASE_STAGE="app ticket and Gatekeeper validation"
+    if ! xcrun stapler staple "${APP_PATH}" \
+        || ! xcrun stapler validate "${APP_PATH}"; then
+        persist_notary_diagnostics \
+            "Unable to staple or validate the app ticket; refusing to create release archives."
+        exit 8
+    fi
+
+    codesign --verify --deep --strict --verbose=4 "${APP_PATH}"
+    spctl --assess --type execute --verbose=4 "${APP_PATH}"
+fi
+
+# Every public container is created from the already-stapled app. Never
+# re-sign APP_PATH after this copy: re-signing invalidates its notarization ticket.
+CURRENT_RELEASE_STAGE="DMG creation and signing"
 ditto "${APP_PATH}" "${DMG_STAGE}/TraceHalo.app"
-cp "${INSTALL_GUIDE}" "${DMG_STAGE}/安装说明.md"
 ln -s /Applications "${DMG_STAGE}/Applications"
 
 hdiutil create \
@@ -255,49 +338,53 @@ fi
 hdiutil verify "${FINAL_DMG}" >/dev/null
 
 if [[ "${NOTARIZE}" == "1" ]]; then
+    CURRENT_RELEASE_STAGE="DMG notarization submission"
     print "Submitting signed DMG to Apple notarization with keychain profile '${NOTARY_PROFILE}'..."
-    if ! xcrun notarytool submit "${FINAL_DMG}" \
+    DMG_SUBMIT_EXIT=0
+    if xcrun notarytool submit "${FINAL_DMG}" \
         --keychain-profile "${NOTARY_PROFILE}" \
         --wait \
         --timeout "${NOTARY_TIMEOUT}" \
         --output-format json \
-        > "${NOTARY_RESULT}" \
-        2> "${NOTARY_STDERR}"; then
-        persist_notary_diagnostics "Apple notarization submission failed."
-        exit 6
+        > "${DMG_NOTARY_RESULT}" \
+        2> "${DMG_NOTARY_STDERR}"; then
+        DMG_SUBMIT_EXIT=0
+    else
+        DMG_SUBMIT_EXIT=$?
     fi
 
-    NOTARY_STATUS="$(plutil -extract status raw -o - "${NOTARY_RESULT}" 2>/dev/null || true)"
-    SUBMISSION_ID="$(plutil -extract id raw -o - "${NOTARY_RESULT}" 2>/dev/null || true)"
-    if [[ -n "${SUBMISSION_ID}" ]]; then
-        xcrun notarytool log "${SUBMISSION_ID}" \
+    DMG_NOTARY_STATUS="$(
+        plutil -extract status raw -o - "${DMG_NOTARY_RESULT}" 2>/dev/null || true
+    )"
+    DMG_SUBMISSION_ID="$(
+        plutil -extract id raw -o - "${DMG_NOTARY_RESULT}" 2>/dev/null || true
+    )"
+    if [[ -n "${DMG_SUBMISSION_ID}" ]]; then
+        xcrun notarytool log "${DMG_SUBMISSION_ID}" \
             --keychain-profile "${NOTARY_PROFILE}" \
-            "${NOTARY_LOG}" \
-            2>> "${NOTARY_STDERR}" || true
+            "${DMG_NOTARY_LOG}" \
+            2>> "${DMG_NOTARY_STDERR}" || true
     fi
 
-    if [[ "${NOTARY_STATUS}" != "Accepted" ]]; then
+    if [[ "${DMG_SUBMIT_EXIT}" != "0" ]]; then
         persist_notary_diagnostics \
-            "Apple notarization did not accept this build: ${NOTARY_STATUS:-unknown status}."
-        exit 7
+            "Apple DMG notarization command failed (exit ${DMG_SUBMIT_EXIT}, submission ${DMG_SUBMISSION_ID:-unknown}); it will not be resubmitted automatically."
+        exit 9
     fi
 
-    # The DMG submission creates tickets for the signed disk image and its
-    # nested app. Staple both so the DMG and TAR/ZIP work without network access.
+    if [[ "${DMG_NOTARY_STATUS}" != "Accepted" ]]; then
+        persist_notary_diagnostics \
+            "Apple notarization did not accept the DMG: ${DMG_NOTARY_STATUS:-unknown status}."
+        exit 10
+    fi
+
+    CURRENT_RELEASE_STAGE="DMG ticket and Gatekeeper validation"
     if ! xcrun stapler staple "${FINAL_DMG}" \
         || ! xcrun stapler validate "${FINAL_DMG}"; then
         persist_notary_diagnostics "Unable to staple or validate the DMG ticket."
-        exit 8
-    fi
-    if ! xcrun stapler staple "${APP_PATH}" \
-        || ! xcrun stapler validate "${APP_PATH}"; then
-        persist_notary_diagnostics \
-            "Unable to staple the nested app ticket; refusing to publish TAR/ZIP archives."
-        exit 8
+        exit 11
     fi
 
-    codesign --verify --deep --strict --verbose=4 "${APP_PATH}"
-    spctl --assess --type execute --verbose=4 "${APP_PATH}"
     codesign --verify --strict --verbose=4 "${FINAL_DMG}"
     hdiutil verify "${FINAL_DMG}" >/dev/null
     spctl --assess \
@@ -310,6 +397,7 @@ fi
 # Create transport archives only after the app ticket is stapled. TAR itself
 # cannot be signed or notarized; the signed, notarized app inside is verified
 # again after extraction below.
+CURRENT_RELEASE_STAGE="ZIP and TAR creation"
 ditto -c -k --norsrc --keepParent "${PAYLOAD_ROOT}" "${FINAL_ZIP}"
 tar -czf "${FINAL_TAR}" -C "${WORK_ROOT}" "${PAYLOAD_NAME}"
 
@@ -320,11 +408,13 @@ ditto -x -k "${FINAL_ZIP}" "${ZIP_VERIFY_ROOT}"
 tar -xzf "${FINAL_TAR}" -C "${TAR_VERIFY_ROOT}"
 
 for extracted_root in "${ZIP_VERIFY_ROOT}" "${TAR_VERIFY_ROOT}"; do
+    CURRENT_RELEASE_STAGE="transport archive app validation"
     extracted_app="${extracted_root}/${PAYLOAD_NAME}/TraceHalo.app"
     extracted_main="${extracted_app}/Contents/MacOS/TraceHalo"
     extracted_helper="${extracted_app}/Contents/Resources/TraceHaloSensorHelper"
     verify_architectures "${extracted_main}"
     verify_architectures "${extracted_helper}"
+    verify_architectures "${extracted_app}/Contents/Resources/TraceHaloUninstallHelper"
     codesign --verify --deep --strict --verbose=4 "${extracted_app}"
     if [[ "${NOTARIZE}" == "1" ]]; then
         xcrun stapler validate "${extracted_app}"
@@ -333,6 +423,7 @@ for extracted_root in "${ZIP_VERIFY_ROOT}" "${TAR_VERIFY_ROOT}"; do
 done
 
 mkdir -p "${MOUNT_PATH}"
+CURRENT_RELEASE_STAGE="mounted DMG app validation"
 hdiutil attach \
     -readonly \
     -nobrowse \
@@ -343,7 +434,19 @@ DMG_MOUNTED=1
 verify_architectures "${MOUNT_PATH}/TraceHalo.app/Contents/MacOS/TraceHalo"
 verify_architectures \
     "${MOUNT_PATH}/TraceHalo.app/Contents/Resources/TraceHaloSensorHelper"
+verify_architectures \
+    "${MOUNT_PATH}/TraceHalo.app/Contents/Resources/TraceHaloUninstallHelper"
 codesign --verify --deep --strict --verbose=4 "${MOUNT_PATH}/TraceHalo.app"
+if [[ "${NOTARIZE}" == "1" ]]; then
+    xcrun stapler validate "${MOUNT_PATH}/TraceHalo.app"
+    spctl --assess \
+        --type execute \
+        --verbose=4 \
+        "${MOUNT_PATH}/TraceHalo.app"
+fi
+if [[ -e "${MOUNT_PATH}/安装说明.md" ]]; then
+    fail "The DMG must not contain an installation guide." 3
+fi
 hdiutil detach "${MOUNT_PATH}" >/dev/null
 DMG_MOUNTED=0
 
@@ -358,7 +461,10 @@ DMG_MOUNTED=0
     print "Team ID: ${TEAM_ID}"
     print "Signing identity SHA-1: ${SIGNING_IDENTITY}"
     print "Notarized: ${NOTARIZE}"
-    print "Notary submission ID: ${SUBMISSION_ID:-none}"
+    print "App notary status: ${APP_NOTARY_STATUS:-not requested}"
+    print "App notary submission ID: ${APP_SUBMISSION_ID:-none}"
+    print "DMG notary status: ${DMG_NOTARY_STATUS:-not requested}"
+    print "DMG notary submission ID: ${DMG_SUBMISSION_ID:-none}"
     print "Git commit: ${GIT_COMMIT}"
     print "Built at UTC: ${RELEASE_STAMP}"
 } > "${RELEASE_MANIFEST}"
@@ -369,7 +475,12 @@ for artifact in "${FINAL_DMG}" "${FINAL_ZIP}" "${FINAL_TAR}"; do
     print -r -- "${artifact_sha}  ${artifact_name}" > "${artifact}.sha256"
 done
 
-DIST_DIR="$(mktemp -d "${DIST_ROOT}/${VERSION_LABEL}-${RELEASE_STAMP}.XXXXXX")"
+PARTIAL_DIST_DIR="$(mktemp -d \
+    "${DIST_ROOT}/.${VERSION}-${RELEASE_STAMP}.partial.XXXXXX")"
+PARTIAL_DIST_NAME="${PARTIAL_DIST_DIR:t}"
+DIST_SUFFIX="${PARTIAL_DIST_NAME##*.}"
+DIST_DIR="${DIST_ROOT}/${VERSION}-${RELEASE_STAMP}.${DIST_SUFFIX}"
+CURRENT_RELEASE_STAGE="publishing verified artifacts"
 for artifact in \
     "${FINAL_DMG}" \
     "${FINAL_DMG}.sha256" \
@@ -378,14 +489,21 @@ for artifact in \
     "${FINAL_TAR}" \
     "${FINAL_TAR}.sha256" \
     "${RELEASE_MANIFEST}"; do
-    mv "${artifact}" "${DIST_DIR}/${artifact:t}"
+    mv "${artifact}" "${PARTIAL_DIST_DIR}/${artifact:t}"
 done
-if [[ -f "${NOTARY_RESULT}" ]]; then
-    cp "${NOTARY_RESULT}" "${DIST_DIR}/notarization-result.json"
-fi
-if [[ -f "${NOTARY_LOG}" ]]; then
-    cp "${NOTARY_LOG}" "${DIST_DIR}/notarization-log.json"
-fi
+for diagnostic in \
+    "${APP_NOTARY_RESULT}" \
+    "${APP_NOTARY_LOG}" \
+    "${DMG_NOTARY_RESULT}" \
+    "${DMG_NOTARY_LOG}"; do
+    if [[ -f "${diagnostic}" ]]; then
+        cp "${diagnostic}" "${PARTIAL_DIST_DIR}/${diagnostic:t}"
+    fi
+done
+
+mv "${PARTIAL_DIST_DIR}" "${DIST_DIR}"
+PARTIAL_DIST_DIR=""
+NOTARY_DIAGNOSTICS_PERSISTED=1
 
 print "Release directory: ${DIST_DIR}"
 print "DMG: ${DIST_DIR}/${FINAL_DMG:t}"

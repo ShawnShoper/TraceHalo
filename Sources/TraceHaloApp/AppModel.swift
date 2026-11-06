@@ -1,3 +1,4 @@
+import AppKit
 import Foundation
 import Observation
 import SwiftUI
@@ -24,8 +25,8 @@ enum AppDestination: String, CaseIterable, Identifiable, Hashable {
 
     private var rawTitle: String {
         switch self {
-        case .dashboard: "概览"
-        case .monitor: "监视器"
+        case .dashboard: "实时监控"
+        case .monitor: "菜单栏布局"
         case .optimizer: "启动优化"
         case .uninstaller: "应用管理"
         case .storage: "存储"
@@ -40,8 +41,8 @@ enum AppDestination: String, CaseIterable, Identifiable, Hashable {
 
     var symbol: String {
         switch self {
-        case .dashboard: "square.grid.2x2"
-        case .monitor: "waveform.path.ecg"
+        case .dashboard: "waveform.path.ecg"
+        case .monitor: "menubar.rectangle"
         case .optimizer: "power"
         case .uninstaller: "app.badge.checkmark"
         case .storage: "internaldrive"
@@ -112,13 +113,71 @@ struct DashboardTelemetrySample: Identifiable, Equatable, Codable, Sendable {
     let gpuPercent: Double?
     let memoryPressurePercent: Double
     let storageUsedPercent: Double?
-    let networkReceivedBytesPerSecond: Double
-    let networkSentBytesPerSecond: Double
+    let networkReceivedBytesPerSecond: Double?
+    let networkSentBytesPerSecond: Double?
     let temperatureCelsius: Double?
 
     var id: Date { date }
-    var networkBytesPerSecond: Double {
-        networkReceivedBytesPerSecond + networkSentBytesPerSecond
+    var networkBytesPerSecond: Double? {
+        DashboardNetworkReading.total(
+            received: networkReceivedBytesPerSecond,
+            sent: networkSentBytesPerSecond
+        )
+    }
+}
+
+struct DashboardNetworkReading {
+    let activeInterfaces: [NetworkInterfaceState]
+    let receivedBytesPerSecond: Double?
+    let sentBytesPerSecond: Double?
+
+    init(interfaces: [NetworkInterfaceState]) {
+        // Traffic can cross both a virtual interface and its underlying link.
+        // Count only active hardware links to avoid counting those bytes twice.
+        activeInterfaces = interfaces.filter { $0.isActive && $0.name.hasPrefix("en") }
+        receivedBytesPerSecond = Self.aggregate(activeInterfaces.compactMap(\.receivedBytesPerSecond))
+        sentBytesPerSecond = Self.aggregate(activeInterfaces.compactMap(\.sentBytesPerSecond))
+    }
+
+    var totalBytesPerSecond: Double? {
+        Self.total(received: receivedBytesPerSecond, sent: sentBytesPerSecond)
+    }
+
+    fileprivate static func total(received: Double?, sent: Double?) -> Double? {
+        guard let received, let sent else { return nil }
+        let total = received + sent
+        return total.isFinite ? total : nil
+    }
+
+    private static func aggregate(_ rates: [Double]) -> Double? {
+        let measuredRates = rates.filter { $0.isFinite && $0 >= 0 }
+        guard !measuredRates.isEmpty else { return nil }
+        let total = measuredRates.reduce(0, +)
+        return total.isFinite ? total : nil
+    }
+}
+
+struct DashboardMemoryEventPolicy {
+    private var baseline: Double?
+    private var lastEventAt: Date?
+
+    mutating func observe(pressure: Double, at date: Date) -> Double? {
+        guard pressure.isFinite, (0 ... 100).contains(pressure) else { return nil }
+        guard let baseline else {
+            self.baseline = pressure
+            return nil
+        }
+        if let lastEventAt, date < lastEventAt {
+            self.baseline = pressure
+            self.lastEventAt = nil
+            return nil
+        }
+        let delta = pressure - baseline
+        guard abs(delta) >= 5,
+              lastEventAt.map({ date.timeIntervalSince($0) >= 60 }) ?? true else { return nil }
+        self.baseline = pressure
+        lastEventAt = date
+        return delta
     }
 }
 
@@ -417,6 +476,9 @@ enum AppCountLocalization {
 
 enum AppOperationError: LocalizedError {
     case partialStartupUpdate(succeeded: Int, failures: [String])
+    case applicationOperationInProgress
+    case uninstallAuthorizationRequired
+    case uninstallTargetChanged
 
     var errorDescription: String? {
         switch self {
@@ -433,6 +495,12 @@ enum AppOperationError: LocalizedError {
                 )
                 : ""
             return prefix + failures.joined(separator: "\n")
+        case .applicationOperationInProgress:
+            return AppLocalization.currentString("应用管理正在处理另一项操作，请稍候。")
+        case .uninstallAuthorizationRequired:
+            return AppLocalization.currentString("请先验证管理员身份，再确认卸载。")
+        case .uninstallTargetChanged:
+            return AppLocalization.currentString("应用已变化，请刷新列表后重新选择。")
         }
     }
 }
@@ -446,7 +514,6 @@ final class AppModel {
     }
 
     private struct DashboardObservation: Equatable {
-        let memoryPressure: Double
         let activeInterfaces: [String: String]
         let fanCount: Int
         let thermalCondition: String
@@ -481,12 +548,14 @@ final class AppModel {
     var dashboardHistoryRetentionDays: Int { dashboardHistoryRetention.rawValue }
     private(set) var isLoadingStartupItems = false
     private(set) var isLoadingApplications = false
+    private(set) var isUninstallingApplication = false
     private(set) var isLoadingStorageHealth = false
     private var loadingApplicationDetailIDs = Set<String>()
     private(set) var startupItemsError: String?
     private(set) var applicationsError: String?
     private(set) var startupItemsLastLoadedAt: Date?
     private(set) var applicationsLastLoadedAt: Date?
+    private(set) var unavailableApplicationSizeIDs = Set<String>()
     private(set) var applicationDetailsLastLoadedAt: [String: Date] = [:]
     private(set) var storageHealthLastLoadedAt: Date?
     private(set) var hasLoadedSnapshot = true
@@ -527,6 +596,7 @@ final class AppModel {
     private var dashboardHistoryRetentionGeneration = 0
     private var isLoadingPersistedDashboardHistory = false
     private var dashboardObservation: DashboardObservation?
+    private var dashboardMemoryEvents = DashboardMemoryEventPolicy()
 
     var isLoadingApplicationDetails: Bool {
         selectedApplicationID.map(loadingApplicationDetailIDs.contains) ?? false
@@ -608,7 +678,9 @@ final class AppModel {
             applicationProvider: ApplicationScanner(),
             healthProvider: StorageHealthService(),
             startupMutator: allowsControlledChanges ? LaunchctlStartupItemMutator() : DenyAllStartupItemMutator(),
-            uninstallExecutor: allowsControlledChanges ? TrashUninstallExecutor() : DenyAllUninstallExecutor(),
+            uninstallExecutor: allowsControlledChanges
+                ? TrashUninstallExecutor(moveApplicationToTrash: Self.recycleApplication)
+                : DenyAllUninstallExecutor(),
             supplementalSensorProvider: SensorHelperClient(),
             dashboardHistoryStore: DashboardHistoryStore()
         )
@@ -620,6 +692,21 @@ final class AppModel {
         model.hasLoadedSnapshot = false
         model.startupPreloadStatus.beginIfNeeded()
         return model
+    }
+
+    private static func recycleApplication(_ url: URL) async throws {
+        let applicationURL = url.standardizedFileURL
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
+            NSWorkspace.shared.recycle([applicationURL]) { movedItems, error in
+                if let error {
+                    continuation.resume(throwing: error)
+                } else if movedItems.keys.contains(where: { $0.standardizedFileURL.path == applicationURL.path }) {
+                    continuation.resume()
+                } else {
+                    continuation.resume(throwing: UninstallAppMoveUnconfirmed(applicationURL: applicationURL))
+                }
+            }
+        }
     }
 
     /// Starts the telemetry lifecycle independently of any particular window.
@@ -844,6 +931,7 @@ final class AppModel {
     }
 
     func loadApplicationsIfNeeded(force: Bool = false) async {
+        guard !isUninstallingApplication else { return }
         if isLoadingApplications {
             await waitForLoadToFinish(\.isLoadingApplications)
             return
@@ -856,6 +944,7 @@ final class AppModel {
             let loadedApplications = try await applicationProvider.applications()
             guard !Task.isCancelled else { return }
             applications = loadedApplications
+            unavailableApplicationSizeIDs.removeAll(keepingCapacity: true)
             enrichedApplicationIDs.removeAll(keepingCapacity: true)
             applicationDetailsLastLoadedAt.removeAll(keepingCapacity: true)
             if selectedApplicationID == nil || !loadedApplications.contains(where: { $0.id == selectedApplicationID }) {
@@ -934,26 +1023,63 @@ final class AppModel {
         }
     }
 
+    func loadApplicationSizes() async {
+        guard dataSource == .live, let loadedAt = applicationsLastLoadedAt else { return }
+        let pending = applications.filter {
+            $0.sizeBytes == nil && !unavailableApplicationSizeIDs.contains($0.id)
+        }
+        for application in pending {
+            guard !Task.isCancelled, applicationsLastLoadedAt == loadedAt else { return }
+            guard applications.contains(where: { $0.id == application.id }) else { continue }
+
+            let size = await applicationProvider.sizeBytes(for: application)
+            guard !Task.isCancelled, applicationsLastLoadedAt == loadedAt else { return }
+            guard let index = applications.firstIndex(where: { $0.id == application.id }) else { continue }
+            if let size {
+                applications[index].sizeBytes = size
+            } else {
+                unavailableApplicationSizeIDs.insert(application.id)
+            }
+        }
+    }
+
     func loadSelectedApplicationDetails(force: Bool = false) async {
         await loadApplicationsIfNeeded()
-        guard !Task.isCancelled else { return }
-        guard dataSource == .live, let application = selectedApplication else { return }
-        guard force || !enrichedApplicationIDs.contains(application.id) else { return }
+        guard dataSource == .live, let requestedID = selectedApplicationID else { return }
+        await waitForLoadToFinish(\.isLoadingApplicationDetails)
+        guard !Task.isCancelled, let application = selectedApplication, application.id == requestedID,
+              force || !enrichedApplicationIDs.contains(requestedID),
+              !loadingApplicationDetailIDs.contains(requestedID) else { return }
 
-        let requestedID = application.id
-        guard !loadingApplicationDetailIDs.contains(requestedID) else { return }
+        let loadedAt = applicationsLastLoadedAt
         loadingApplicationDetailIDs.insert(requestedID)
         defer {
             loadingApplicationDetailIDs.remove(requestedID)
         }
-        let enriched = await applicationProvider.enrichedApplication(application)
-        guard !Task.isCancelled else { return }
+        var enriched = await applicationProvider.enrichedApplication(application)
+        guard !Task.isCancelled, applicationsLastLoadedAt == loadedAt else { return }
         guard let index = applications.firstIndex(where: { $0.id == requestedID }) else {
             return
         }
+        enriched.sizeBytes = enriched.sizeBytes ?? applications[index].sizeBytes
         applications[index] = enriched
         enrichedApplicationIDs.insert(requestedID)
         applicationDetailsLastLoadedAt[requestedID] = Date()
+    }
+
+    func canOpenVendorUninstaller(_ uninstaller: VendorUninstaller, for applicationID: String) async -> Bool {
+        guard dataSource == .live, RuntimeSafetyMode.current == .live,
+              !isUninstallingApplication, var application = selectedApplication,
+              application.id == applicationID, application.vendorUninstaller == uninstaller else {
+            return false
+        }
+        // If the bundle has disappeared, enrichment can return its input.
+        application.vendorUninstaller = nil
+        let current = await applicationProvider.enrichedApplication(application)
+        return !Task.isCancelled && !isUninstallingApplication
+            && selectedApplicationID == applicationID
+            && selectedApplication?.vendorUninstaller == uninstaller
+            && current.vendorUninstaller == uninstaller
     }
 
     private func refreshSnapshot(showsActivity: Bool = false) async {
@@ -1092,7 +1218,6 @@ final class AppModel {
         guard dataSource == .live else { return }
         let interfaces = Self.dashboardEventInterfaces(from: snapshot)
         let current = DashboardObservation(
-            memoryPressure: snapshot.memory.pressurePercent,
             activeInterfaces: Dictionary(
                 uniqueKeysWithValues: interfaces
                     .filter(\.isActive)
@@ -1102,6 +1227,7 @@ final class AppModel {
             thermalCondition: snapshot.cooling.condition.rawValue
         )
         let now = snapshot.capturedAt
+        let memoryDelta = dashboardMemoryEvents.observe(pressure: snapshot.memory.pressurePercent, at: now)
 
         guard let previous = dashboardObservation else {
             dashboardObservation = current
@@ -1159,19 +1285,18 @@ final class AppModel {
             return
         }
 
-        let memoryDelta = current.memoryPressure - previous.memoryPressure
-        if abs(memoryDelta) >= 1 {
+        if let memoryDelta {
             insertDashboardEvent(
                 DashboardEventRecord(
                     titleKey: "dashboard.event.memory.change",
-                    titleDefaultValue: "内存压力%@ %@",
+                    titleDefaultValue: "内存占用%@ %@ 个百分点",
                     titleArguments: [
                         memoryDelta > 0 ? "上升" : "下降",
-                        MetricFormatter.percent(abs(memoryDelta))
+                        String(Int(abs(memoryDelta).rounded()))
                     ],
                     titleLocalizedArgumentIndices: [0],
-                    detailKey: "与上一次采样相比",
-                    detailDefaultValue: "与上一次采样相比",
+                    detailKey: "与上次记录值相比",
+                    detailDefaultValue: "与上次记录值相比",
                     occurredAt: now,
                     color: memoryDelta > 0 ? CalmTheme.amber : CalmTheme.mint
                 )
@@ -1297,12 +1422,9 @@ final class AppModel {
     }
 
     var overallState: OverallSystemState {
+        if snapshot.cooling.condition == .critical { return .critical }
         if lastError != nil { return .limited }
-        switch snapshot.cooling.condition {
-        case .critical: return .critical
-        case .serious: return .attention
-        case .nominal, .fair, .unavailable: break
-        }
+        if snapshot.cooling.condition == .serious { return .attention }
         if snapshot.battery.health == .serviceRecommended { return .attention }
         if storageHealth.values.contains(where: { health in
             let condition = StorageHealthSemanticCondition.classify(health)
@@ -1386,20 +1508,48 @@ final class AppModel {
         return succeeded
     }
 
-    func setAssociatedFile(_ id: String, selected: Bool, applicationID: String) {
-        guard let applicationIndex = applications.firstIndex(where: { $0.id == applicationID }),
-              let fileIndex = applications[applicationIndex].associatedFiles.firstIndex(where: { $0.id == id })
-        else { return }
-        applications[applicationIndex].associatedFiles[fileIndex].isSelected = selected
+    func privilegedUninstallTarget(for application: ApplicationCandidate) throws -> PrivilegedUninstallTarget? {
+        guard dataSource == .live, RuntimeSafetyMode.current == .live else { return nil }
+        return try PrivilegedUninstallTarget.captureIfNeeded(applicationURL: application.bundleURL)
     }
 
-    func uninstall(_ application: ApplicationCandidate) async throws -> Int {
-        let selectedFiles = application.associatedFiles.filter(\.isSelected)
-        let plan = UninstallPlan(application: application, selectedFiles: selectedFiles)
-        try await uninstallExecutor.execute(plan: plan)
-        applications.removeAll { $0.id == application.id }
-        selectedApplicationID = applications.first?.id
-        return plan.totalItemCount
+    func uninstall(_ plan: UninstallPlan, authorization: PrivilegedUninstallAuthorization? = nil) async throws {
+        guard !isLoadingApplications, !isUninstallingApplication else {
+            throw AppOperationError.applicationOperationInProgress
+        }
+        let target = try privilegedUninstallTarget(for: plan.application)
+        let executor: any UninstallExecuting
+        if let authorization {
+            guard target == authorization.target else {
+                throw AppOperationError.uninstallTargetChanged
+            }
+            executor = TrashUninstallExecutor { url in
+                try await authorization.moveApplicationToTrash(url)
+            }
+        } else {
+            guard target == nil else { throw AppOperationError.uninstallAuthorizationRequired }
+            executor = uninstallExecutor
+        }
+        isUninstallingApplication = true
+        defer { isUninstallingApplication = false }
+
+        do {
+            try await executor.execute(plan: plan)
+        } catch let failure as UninstallExecutionError where failure.didMoveApplication {
+            removeApplicationFromInventory(plan.application.id)
+            throw failure
+        }
+        removeApplicationFromInventory(plan.application.id)
+    }
+
+    private func removeApplicationFromInventory(_ applicationID: String) {
+        applications.removeAll { $0.id == applicationID }
+        unavailableApplicationSizeIDs.remove(applicationID)
+        enrichedApplicationIDs.remove(applicationID)
+        applicationDetailsLastLoadedAt.removeValue(forKey: applicationID)
+        if selectedApplicationID == applicationID {
+            selectedApplicationID = nil
+        }
     }
 
     func history(for metric: MonitorMetric) -> [Double] {
@@ -1488,15 +1638,15 @@ final class AppModel {
 
     private static func dashboardSample(from snapshot: SystemSnapshot) -> DashboardTelemetrySample {
         let volume = snapshot.volumes.first(where: { $0.isInternal == true }) ?? snapshot.volumes.first
-        let interfaces = snapshot.networkInterfaces.filter(isDashboardInterfaceRelevant)
+        let network = DashboardNetworkReading(interfaces: snapshot.networkInterfaces)
         return DashboardTelemetrySample(
             date: snapshot.capturedAt,
             cpuPercent: snapshot.cpu.totalPercent,
             gpuPercent: snapshot.gpus.first?.utilizationPercent,
             memoryPressurePercent: snapshot.memory.pressurePercent,
             storageUsedPercent: volume.map { $0.usedFraction * 100 },
-            networkReceivedBytesPerSecond: interfaces.compactMap(\.receivedBytesPerSecond).reduce(0, +),
-            networkSentBytesPerSecond: interfaces.compactMap(\.sentBytesPerSecond).reduce(0, +),
+            networkReceivedBytesPerSecond: network.receivedBytesPerSecond,
+            networkSentBytesPerSecond: network.sentBytesPerSecond,
             temperatureCelsius: dashboardTemperature(from: snapshot)
         )
     }
@@ -1535,16 +1685,12 @@ final class AppModel {
                     0
                 ), 100),
                 storageUsedPercent: volume.map { $0.usedFraction * 100 },
-                networkReceivedBytesPerSecond: max(
-                    (interpolatedDashboardHistoryValue(received, fraction: fraction) ?? 0)
-                        * (1 + fixtureHistoryVariation(index: index, amplitude: 0.12, phase: 0.7)),
-                    0
-                ),
-                networkSentBytesPerSecond: max(
-                    (interpolatedDashboardHistoryValue(sent, fraction: fraction) ?? 0)
-                        * (1 + fixtureHistoryVariation(index: index, amplitude: 0.1, phase: 1.7)),
-                    0
-                ),
+                networkReceivedBytesPerSecond: interpolatedDashboardHistoryValue(received, fraction: fraction).map {
+                    max($0 * (1 + fixtureHistoryVariation(index: index, amplitude: 0.12, phase: 0.7)), 0)
+                },
+                networkSentBytesPerSecond: interpolatedDashboardHistoryValue(sent, fraction: fraction).map {
+                    max($0 * (1 + fixtureHistoryVariation(index: index, amplitude: 0.1, phase: 1.7)), 0)
+                },
                 temperatureCelsius: interpolatedDashboardHistoryValue(
                     temperature,
                     fraction: fraction
@@ -1577,17 +1723,8 @@ final class AppModel {
         )
     }
 
-    private static func isDashboardInterfaceRelevant(_ interface: NetworkInterfaceState) -> Bool {
-        let name = interface.name.lowercased()
-        let excludedPrefixes = [
-            "lo", "utun", "awdl", "llw", "bridge", "gif", "stf", "anpi", "ap", "pktap"
-        ]
-        return !excludedPrefixes.contains(where: name.hasPrefix)
-            && (name.hasPrefix("en") || interface.isActive)
-    }
-
     private static func dashboardEventInterfaces(from snapshot: SystemSnapshot) -> [NetworkInterfaceState] {
-        let candidates = snapshot.networkInterfaces.filter(isDashboardInterfaceRelevant)
+        let candidates = DashboardNetworkReading(interfaces: snapshot.networkInterfaces).activeInterfaces
         let wifi = candidates.first { interface in
             let displayName = interface.displayName.lowercased()
             return displayName.contains("wi-fi") || displayName.contains("wifi")
@@ -1618,7 +1755,7 @@ final class AppModel {
         let now = snapshot.capturedAt
         return [
             DashboardEventRecord(
-                title: "内存压力上升 8%",
+                title: "内存占用上升 8 个百分点",
                 detail: "与 1 小时前相比",
                 occurredAt: now.addingTimeInterval(-3_600),
                 color: CalmTheme.amber

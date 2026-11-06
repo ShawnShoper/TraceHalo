@@ -5,6 +5,35 @@ import XCTest
 import TraceHaloCore
 
 final class AppModelLifecycleTests: XCTestCase {
+    func testMemoryEventsReportCumulativeChangesAndSuppressSmallFluctuations() {
+        var policy = DashboardMemoryEventPolicy()
+        let now = Date(timeIntervalSince1970: 1_000)
+
+        XCTAssertNil(policy.observe(pressure: 60, at: now))
+        XCTAssertNil(policy.observe(pressure: 61, at: now.addingTimeInterval(2)))
+        XCTAssertNil(policy.observe(pressure: 59, at: now.addingTimeInterval(4)))
+        XCTAssertEqual(policy.observe(pressure: 65, at: now.addingTimeInterval(6)), 5)
+        XCTAssertNil(policy.observe(pressure: 58, at: now.addingTimeInterval(10)))
+        XCTAssertEqual(policy.observe(pressure: 58, at: now.addingTimeInterval(66)), -7)
+    }
+
+    func testApplicationScannerUsesBuildVersionWhenShortVersionIsBlank() throws {
+        let fileManager = FileManager.default
+        let root = fileManager.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+        let contents = root.appendingPathComponent("Example.app/Contents", isDirectory: true)
+        try fileManager.createDirectory(at: contents, withIntermediateDirectories: true)
+        defer { try? fileManager.removeItem(at: root) }
+        let info = try PropertyListSerialization.data(
+            fromPropertyList: ["CFBundleShortVersionString": "  ", "CFBundleVersion": "42"],
+            format: .xml,
+            options: 0
+        )
+        try info.write(to: contents.appendingPathComponent("Info.plist"))
+
+        let applications = try ApplicationScanner(searchRoots: [root]).scanApplications()
+        XCTAssertEqual(applications.first?.version, "42")
+    }
+
     func testBatteryAwareRefreshUsesReportedPowerSourceInsteadOfChargingState() {
         let pluggedInButNotCharging = BatteryState(
             availability: .available,
@@ -242,6 +271,66 @@ final class AppModelLifecycleTests: XCTestCase {
     }
 
     @MainActor
+    func testDashboardNetworkHistoryMatchesActiveLinksAndDistinguishesMissingFromZero() async throws {
+        let now = Date().addingTimeInterval(60)
+        var initial = SystemSnapshot.fixture
+        initial.capturedAt = now
+        initial.networkInterfaces = [
+            NetworkInterfaceState(name: "en0", displayName: "Wi-Fi", localAddress: nil, isActive: true),
+            NetworkInterfaceState(
+                name: "utun0", displayName: "VPN", localAddress: nil, isActive: true,
+                receivedBytesPerSecond: 800, sentBytesPerSecond: 700
+            ),
+            NetworkInterfaceState(
+                name: "en1", displayName: "Ethernet", localAddress: nil, isActive: false,
+                receivedBytesPerSecond: 600, sentBytesPerSecond: 500
+            )
+        ]
+        var idle = initial
+        idle.capturedAt = now.addingTimeInterval(6)
+        idle.networkInterfaces[0].receivedBytesPerSecond = 0
+        idle.networkInterfaces[0].sentBytesPerSecond = 0
+        var active = idle
+        active.capturedAt = now.addingTimeInterval(12)
+        active.networkInterfaces[0].receivedBytesPerSecond = 100
+        active.networkInterfaces[0].sentBytesPerSecond = 50
+        active.networkInterfaces.append(
+            NetworkInterfaceState(
+                name: "en2", displayName: "Ethernet", localAddress: nil, isActive: true,
+                receivedBytesPerSecond: 25, sentBytesPerSecond: 75
+            )
+        )
+        let model = AppModel(
+            metricsProvider: InMemorySequencedMetricsProvider(snapshots: [initial, idle, active])
+        )
+
+        for _ in [initial, idle, active] {
+            await model.refreshAll()
+        }
+
+        let samples = Array(model.dashboardHistory.suffix(3))
+        XCTAssertEqual(samples.map(\.networkReceivedBytesPerSecond), [nil, 0, 125])
+        XCTAssertEqual(samples.map(\.networkSentBytesPerSecond), [nil, 0, 125])
+        XCTAssertEqual(samples.map(\.networkBytesPerSecond), [nil, 0, 250])
+        let current = DashboardNetworkReading(interfaces: model.snapshot.networkInterfaces)
+        XCTAssertEqual(current.activeInterfaces.map(\.name), ["en0", "en2"])
+        XCTAssertEqual(current.totalBytesPerSecond, try XCTUnwrap(samples.last).networkBytesPerSecond)
+    }
+
+    @MainActor
+    func testCriticalTemperatureRemainsVisibleWhenAnotherReadingFails() async {
+        var snapshot = SystemSnapshot.fixture
+        snapshot.cooling.condition = .critical
+        let model = AppModel(
+            metricsProvider: InMemorySequencedMetricsProvider(snapshots: [snapshot])
+        )
+        await model.refreshAll()
+        model.lastError = "Storage health unavailable"
+
+        XCTAssertEqual(model.overallState.title, OverallSystemState.critical.title)
+    }
+
+    @MainActor
     func testSystemReportedHealthyBatteryDoesNotRaiseDashboardAttention() async {
         var snapshot = SystemSnapshot.fixture
         snapshot.battery = BatteryState(
@@ -296,6 +385,46 @@ final class AppModelLifecycleTests: XCTestCase {
             events,
             "Returning to an already prepared menu must reuse its cached model data"
         )
+    }
+
+    @MainActor
+    func testApplicationSizeUsesBundleDiskSpaceAndSurvivesDetailsReload() async throws {
+        let fileManager = FileManager.default
+        let root = fileManager.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        let bundle = root.appendingPathComponent("Disk Test.app")
+        let payload = bundle.appendingPathComponent("payload")
+        let externalFile = root.appendingPathComponent("outside")
+        try fileManager.createDirectory(at: bundle, withIntermediateDirectories: true)
+        defer { try? fileManager.removeItem(at: root) }
+        try Data(repeating: 1, count: 65_536).write(to: payload)
+        try Data(repeating: 2, count: 1_048_576).write(to: externalFile)
+        try fileManager.linkItem(at: payload, to: bundle.appendingPathComponent("hard link"))
+        try fileManager.createSymbolicLink(at: bundle.appendingPathComponent("external link"), withDestinationURL: externalFile)
+
+        let du = Process()
+        let output = Pipe()
+        du.executableURL = URL(fileURLWithPath: "/usr/bin/du")
+        du.arguments = ["-s", "-x", bundle.path]
+        du.environment = ["BLOCKSIZE": "512"]
+        du.standardOutput = output
+        try du.run()
+        let sizeLine = String(decoding: output.fileHandleForReading.readDataToEndOfFile(), as: UTF8.self)
+        du.waitUntilExit()
+        XCTAssertEqual(du.terminationStatus, 0)
+        let expectedBlocks = try XCTUnwrap(sizeLine.split(separator: "\t").first.flatMap { UInt64($0) })
+        XCTAssertGreaterThan(expectedBlocks, 0)
+
+        let provider = ApplicationScanner(searchRoots: [root], homeDirectory: root)
+        let model = AppModel(applicationProvider: provider)
+        model.dataSource = .live
+        await model.loadApplicationsIfNeeded()
+        XCTAssertEqual(model.selectedApplication?.bundleURL.path, bundle.path)
+        XCTAssertNil(model.selectedApplication?.sizeBytes)
+
+        await model.loadApplicationSizes()
+        XCTAssertEqual(model.selectedApplication?.sizeBytes, expectedBlocks * 512)
+        await model.loadSelectedApplicationDetails(force: true)
+        XCTAssertEqual(model.selectedApplication?.sizeBytes, expectedBlocks * 512)
     }
 
     @MainActor
