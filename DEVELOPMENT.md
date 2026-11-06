@@ -21,11 +21,13 @@ open TraceHalo.xcodeproj
 
 Select the **TraceHalo** scheme. In the TraceHalo target you can manage:
 
-- **General**: app version (`0.1.1`), build number (`3`), deployment target, and app category.
+- **General**: app version (`0.2.0`), build number (`26`), deployment target, and app category.
 - **Signing & Capabilities**: development team, automatic signing, hardened runtime, and future capabilities.
 - **Build Settings**: bundle identifier (`com.tseai.tracehalo`) and advanced compiler settings.
 
 The checked-in project currently selects Team `4DXU5FSLLY` for automatic signing. Contributors using another Apple Developer account should select their own team under **Signing & Capabilities**. Certificates, private keys, notarization credentials, and provisioning profiles are never stored in the repository; Xcode and Keychain manage them locally.
+
+The privileged uninstall helper trusts Developer ID signatures from the checked-in team. A fork using a different team must update the client and helper signing requirements together and reverify the authorization and uninstall flows.
 
 The maintainer machine has `Developer ID Application: Hao Xie (4DXU5FSLLY)` with its private key, and its local `tracehalo-notary` Keychain profile has been validated with Apple. The profile remains local to the release machine; having the certificate alone does not make a build notarized.
 
@@ -55,7 +57,7 @@ open .build/TraceHalo.app
 TRACEHALO_SAFE_TEST_MODE=1 swift test --disable-sandbox
 ```
 
-Tests must not remove files, modify startup items, or change system settings. Generate the in-memory UI review screenshots with:
+Test removal with disposable fixtures or test doubles. Keep installed apps, personal files, startup items, and system settings outside test scope. Generate the in-memory UI review screenshots with:
 
 ```sh
 make snapshot-qa
@@ -72,7 +74,7 @@ v0.1.0  next feature milestone
 v1.0.0  first major release
 ```
 
-The current Apple bundle metadata stores public version `v0.1.1` as `0.1.1`, with build number `3` and release channel `Beta`. `scripts/public-version.sh` formats the public version used by release files and tags.
+The source for `v0.2.0` uses Apple bundle version `0.2.0`, build `26`, and release channel `Beta`. `scripts/public-version.sh` formats versions for release files and tags. The public installer depends on passing the distribution checks below. [Upgrade notes in Simplified Chinese](docs/releases/v0.2.0.md)
 
 ### Release packaging
 
@@ -82,7 +84,7 @@ The default release target is the production, fail-closed path:
 make release
 ```
 
-It requires the configured Developer ID identity and `tracehalo-notary` profile, builds both `arm64` and `x86_64`, requires Apple notarization to return `Accepted`, staples and verifies the ticket, and runs Gatekeeper checks. A successful run produces DMG, TAR.GZ, and ZIP files, one `.sha256` file for each artifact, and `release-manifest.txt`. It must not fall back to ad-hoc signing when any production prerequisite is missing.
+It requires the configured Developer ID identity and `tracehalo-notary` profile, builds both `arm64` and `x86_64`, and uses two notarization stages. The app must be accepted, stapled, and Gatekeeper-verified before it enters any public archive; the resulting DMG is then signed, notarized, stapled, and verified separately. A successful run produces DMG, TAR.GZ, and ZIP files whose embedded app tickets validate independently, one `.sha256` file for each artifact, separate app/DMG notarization evidence, and `release-manifest.txt`. It must not fall back to ad-hoc signing when any production prerequisite is missing.
 
 Use the separate local-only path when Developer ID or Apple notarization is intentionally not required:
 
@@ -90,7 +92,7 @@ Use the separate local-only path when Developer ID or Apple notarization is inte
 make release-local
 ```
 
-Its artifacts are explicitly marked `adhoc`, are not notarized, and must not be uploaded as a public Release. See [DISTRIBUTION.md](DISTRIBUTION.md) for one-time `notarytool` profile setup, release variables, and verification commands.
+Use the output directory and its `release-manifest.txt` to identify the build. `Signing mode: adhoc` identifies a local test package. Ad-hoc and Apple Development builds can verify ordinary monitoring. Privileged uninstall requires the trusted team’s Developer ID signatures on both the app and helper. For protected apps, Finder remains available for manual removal. [Distribution guide](DISTRIBUTION.md)
 
 ### Project layout
 
@@ -102,7 +104,8 @@ TraceHalo/
 ├── Sources/
 │   ├── TraceHaloCore/          Models, collectors, formatting, and safety
 │   ├── TraceHaloApp/           SwiftUI app and menu bar interface
-│   └── TraceHaloSensorHelper/  Optional read-only sensor helper
+│   ├── TraceHaloSensorHelper/  Optional read-only sensor helper
+│   └── TraceHaloUninstallHelper/  Authorized removal of eligible apps
 ├── Tests/                        Core and in-memory UI tests
 ├── docs/images/                  README screenshots
 └── scripts/                      App and release packaging
@@ -131,11 +134,13 @@ open TraceHalo.xcodeproj
 
 选择 **TraceHalo** Scheme。进入 TraceHalo Target 后可以直接管理：
 
-- **General**：应用版本（`0.1.1`）、构建号（`3`）、最低系统版本和应用分类。
+- **General**：应用版本（`0.2.0`）、构建号（`26`）、最低系统版本和应用分类。
 - **Signing & Capabilities**：开发团队、自动签名、Hardened Runtime，以及以后新增的能力。
 - **Build Settings**：Bundle ID（`com.tseai.tracehalo`）和高级编译配置。
 
 工程当前为自动签名选择了 Team `4DXU5FSLLY`。使用其他 Apple Developer 账号的贡献者，请在 **Signing & Capabilities** 中改为自己的 Team。仓库不会保存证书、私钥、公证凭据或描述文件，它们由本机 Xcode 与钥匙串管理。
+
+卸载助手仅信任本仓库预设团队的 Developer ID 签名。使用其他签名团队的分支需要同步修改客户端和助手的签名信任配置，再复验授权和卸载流程。
 
 维护者机器已经安装 `Developer ID Application: Hao Xie (4DXU5FSLLY)` 及其私钥，且本机 `tracehalo-notary` 钥匙串 profile 已通过 Apple 验证。该 profile 仅保存在发布机器；只有证书不代表构建已经通过 Apple 公证。
 
@@ -165,7 +170,7 @@ open .build/TraceHalo.app
 TRACEHALO_SAFE_TEST_MODE=1 swift test --disable-sandbox
 ```
 
-测试不得删除文件、修改启动项或改变系统设置。生成纯内存界面验收截图：
+卸载测试使用临时夹具或测试替身。测试范围限于测试数据，已安装应用、个人文件、启动项和系统设置需隔离。生成纯内存界面验收截图：
 
 ```sh
 make snapshot-qa
@@ -182,7 +187,7 @@ v0.1.0  下一个功能里程碑
 v1.0.0  首个正式大版本
 ```
 
-当前 Apple 应用内部将公开版本 `v0.1.1` 保存为 `0.1.1`，构建号为 `3`，发行渠道为 `Beta`。`scripts/public-version.sh` 会生成安装包和 Git Tag 使用的公开版本号。
+`v0.2.0` 源码的 Apple 应用版本为 `0.2.0`，构建号为 `26`，发行渠道为 `Beta`。`scripts/public-version.sh` 为安装包和 Git Tag 格式化公开版本号。公开安装包需通过下文的发行验证。[升级说明](docs/releases/v0.2.0.md)
 
 ### 发行包构建
 
@@ -192,7 +197,7 @@ v1.0.0  首个正式大版本
 make release
 ```
 
-它要求 Developer ID 身份和 `tracehalo-notary` profile 均可用，同时构建 `arm64` 与 `x86_64`，要求 Apple 公证返回 `Accepted`，完成 ticket 装订与验证，并执行 Gatekeeper 检查。成功后会生成 DMG、TAR.GZ、ZIP、每个产物各自的 `.sha256`，以及 `release-manifest.txt`；任何生产前置条件缺失时都不得降级为 ad-hoc。
+它要求 Developer ID 身份和 `tracehalo-notary` profile 均可用，同时构建 `arm64` 与 `x86_64`，并执行两阶段公证。App 必须先公证 `Accepted`、装订 ticket 并通过 Gatekeeper，之后才能进入任何公开归档；生成的 DMG 再单独签名、公证、装订和验证。成功后会生成内部 App ticket 可独立验证的 DMG、TAR.GZ、ZIP、每个产物各自的 `.sha256`、App/DMG 两套公证证据，以及 `release-manifest.txt`；任何生产前置条件缺失时都不得降级为 ad-hoc。
 
 无需 Developer ID 或 Apple 公证的本地测试必须使用独立入口：
 
@@ -200,7 +205,7 @@ make release
 make release-local
 ```
 
-其产物会明确标记 `adhoc`，不经过公证，不得上传为公开 Release。`notarytool` profile 的一次性配置、发行变量和验证命令见 [DISTRIBUTION.md](DISTRIBUTION.md)。
+请通过产物所在目录和 `release-manifest.txt` 确认构建来源。`Signing mode: adhoc` 表示本地测试包。ad-hoc 和 Apple Development 签名可验证普通监控，特权卸载验收要求 App 与卸载助手都使用受信任团队的 Developer ID 签名。需要系统权限的应用也可在 Finder 中按提示手动移除。[分发指南](DISTRIBUTION.md)
 
 ### 项目结构
 
@@ -212,7 +217,8 @@ TraceHalo/
 ├── Sources/
 │   ├── TraceHaloCore/          模型、数据采集、格式化和安全边界
 │   ├── TraceHaloApp/           SwiftUI 主程序和菜单栏界面
-│   └── TraceHaloSensorHelper/  可选的只读传感器服务
+│   ├── TraceHaloSensorHelper/  可选的只读传感器服务
+│   └── TraceHaloUninstallHelper/  为符合条件的应用提供授权卸载
 ├── Tests/                        Core 与纯内存界面测试
 ├── docs/images/                  README 界面截图
 └── scripts/                      App 和发行包构建脚本

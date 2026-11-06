@@ -1,4 +1,5 @@
 import AppKit
+import Darwin
 import Foundation
 import TraceHaloCore
 
@@ -7,8 +8,7 @@ struct SnapshotQAMain {
     @MainActor
     static func main() async {
         guard let path = CommandLine.arguments.dropFirst().first, path.hasPrefix("/") else {
-            print("Usage: TraceHaloSnapshotQA /absolute/output/directory")
-            return
+            fail("Usage: TraceHaloSnapshotQA /absolute/output/directory")
         }
 
         _ = NSApplication.shared
@@ -30,6 +30,26 @@ struct SnapshotQAMain {
         if let appIcon = appIconPaths.lazy.compactMap(NSImage.init(contentsOfFile:)).first {
             NSApplication.shared.applicationIconImage = appIcon
         }
+
+        let outputDirectory = URL(fileURLWithPath: path, isDirectory: true)
+        let reportRegressionModel = await makeReportRegressionModel()
+        do {
+            if ProcessInfo.processInfo.environment["TRACEHALO_SNAPSHOT_REPORT_ONLY"] == "1" {
+                try await UISnapshotCapture.captureReportRegression(
+                    model: reportRegressionModel,
+                    outputDirectory: outputDirectory
+                )
+            } else {
+                try await captureAll(reportRegressionModel: reportRegressionModel, outputDirectory: outputDirectory)
+            }
+            print("Captured UI snapshots in \(path)")
+        } catch {
+            fail("UI snapshot capture failed: \(error.localizedDescription)")
+        }
+    }
+
+    @MainActor
+    private static func captureAll(reportRegressionModel: AppModel, outputDirectory: URL) async throws {
         let model = AppModel()
         model.monitorConfiguration = .standard
         model.refreshInterval = 2
@@ -55,22 +75,46 @@ struct SnapshotQAMain {
         let portableSettingsModel = AppModel(
             metricsProvider: SnapshotQAMetricsProvider(value: portableSnapshot)
         )
+        portableSettingsModel.monitorConfiguration = .standard
         portableSettingsModel.refreshInterval = 2
         portableSettingsModel.pauseWhenOnBattery = true
         portableSettingsModel.showMenuBarSummary = true
         portableSettingsModel.includeProcessNamesInReport = false
         portableSettingsModel.includeVolumeNamesInReport = false
         await portableSettingsModel.refreshAll()
-        do {
-            try UISnapshotCapture.captureAll(
-                model: model,
-                portableSettingsModel: portableSettingsModel,
-                outputDirectory: URL(fileURLWithPath: path, isDirectory: true)
-            )
-            print("Captured UI snapshots in \(path)")
-        } catch {
-            print("UI snapshot capture failed: \(error.localizedDescription)")
+        try await UISnapshotCapture.captureAll(
+            model: model,
+            portableSettingsModel: portableSettingsModel,
+            reportRegressionModel: reportRegressionModel,
+            outputDirectory: outputDirectory
+        )
+    }
+
+    @MainActor
+    private static func makeReportRegressionModel() async -> AppModel {
+        var snapshot = SystemSnapshot.fixture
+        let longName = "TraceHaloQA" + String(repeating: "UnbrokenExecutableName", count: 5)
+        // Reports omit volume mount paths. Include a synthetic executable path
+        // in a process name to exercise wrapping without altering report privacy.
+        let longPath = "/Users/TraceHalo-QA/Library/Application Support/Diagnostics/Workers/"
+            + "ReportPreviewWrappingFixture.app/Contents/MacOS/ReportPreviewWrappingFixture"
+        snapshot.cpu.topProcesses = [
+            ProcessUsage(id: 101, name: longName, cpuPercent: 40, memoryBytes: 524_288),
+            ProcessUsage(id: 102, name: longPath, cpuPercent: 20, memoryBytes: 262_144)
+        ]
+        if !snapshot.volumes.isEmpty {
+            snapshot.volumes[0].name = "TraceHalo-QA-" + String(repeating: "LongVolumeLabel", count: 6)
         }
+        let model = AppModel(metricsProvider: SnapshotQAMetricsProvider(value: snapshot))
+        model.includeProcessNamesInReport = true
+        model.includeVolumeNamesInReport = true
+        await model.refreshAll()
+        return model
+    }
+
+    private static func fail(_ message: String) -> Never {
+        FileHandle.standardError.write(Data("\(message)\n".utf8))
+        exit(EXIT_FAILURE)
     }
 }
 

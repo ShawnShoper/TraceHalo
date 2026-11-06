@@ -57,7 +57,8 @@ final class TraceHaloSingleInstanceGuard {
 }
 
 enum TraceHaloWindowIdentity {
-    static let main = NSUserInterfaceItemIdentifier("TraceHalo.main")
+    // SwiftUI uses the scene ID as the NSWindow identifier.
+    static let main = NSUserInterfaceItemIdentifier("main")
 }
 
 @MainActor
@@ -141,8 +142,10 @@ final class TraceHaloApplicationDelegate: NSObject, NSApplicationDelegate {
     func enterMenuBarMode() {
         menuBarController.closePopover()
         guard menuBarController.prepareForMenuBarMode() else { return }
-        guard NSApplication.shared.setActivationPolicy(.accessory) else { return }
-        for window in NSApplication.shared.windows where window.isVisible {
+        let application = NSApplication.shared
+        guard application.setActivationPolicy(.accessory) else { return }
+        // The status item's backing window must stay visible in menu-bar mode.
+        for window in application.windows where window.isVisible && window.level == .normal {
             window.orderOut(nil)
         }
     }

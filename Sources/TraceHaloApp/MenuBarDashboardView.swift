@@ -86,6 +86,11 @@ enum MenuOverviewPalette {
 enum MenuBarDashboardPresentationMode: Equatable {
     case popover
     case embeddedPreview
+    case inlineDetails(MenuBarDashboardSection)
+}
+
+private extension EnvironmentValues {
+    @Entry var inlineMonitorDetails = false
 }
 
 enum MenuBarRecencyLabel {
@@ -485,10 +490,11 @@ enum MenuBarDashboardSection: String, CaseIterable, Identifiable, Equatable {
 
     static func visibleSections(
         in configuration: MonitorConfiguration,
-        snapshot: SystemSnapshot? = nil
+        snapshot: SystemSnapshot? = nil,
+        includesDisabledModules: Bool = false
     ) -> [Self] {
         referenceOrder.filter { section in
-            configuration.isModuleEnabled(section.module)
+            (includesDisabledModules || configuration.isModuleEnabled(section.module))
                 && (snapshot == nil
                     || section.module != .power
                     || snapshot.map { PowerPresentationPolicy.isAvailable(in: $0) } == true)
@@ -865,6 +871,14 @@ private struct StatusBarAreaChart: View {
     }
 }
 
+struct MonitorResourceDetails: View {
+    let section: MenuBarDashboardSection
+
+    var body: some View {
+        MenuBarDashboardView(presentationMode: .inlineDetails(section))
+    }
+}
+
 struct MenuBarDashboardView: View {
     @Environment(AppModel.self) private var model
     @Environment(AppNavigationRouter.self) private var navigationRouter
@@ -880,6 +894,7 @@ struct MenuBarDashboardView: View {
     private let showsQuickLaunchFooter: Bool
     private let resetsSelectionOnPopoverClose: Bool
     private let presentationMode: MenuBarDashboardPresentationMode
+    private let includesDisabledModules: Bool
     private let requestedSection: MenuBarDashboardSection?
     private let onSelectionChange: ((MenuBarDashboardSection?) -> Void)?
 
@@ -891,6 +906,7 @@ struct MenuBarDashboardView: View {
         showsQuickLaunchFooter: Bool = true,
         resetsSelectionOnPopoverClose: Bool = true,
         presentationMode: MenuBarDashboardPresentationMode = .popover,
+        includesDisabledModules: Bool = false,
         onSelectionChange: ((MenuBarDashboardSection?) -> Void)? = nil
     ) {
         _selection = State(
@@ -907,21 +923,31 @@ struct MenuBarDashboardView: View {
         self.showsQuickLaunchFooter = showsQuickLaunchFooter
         self.resetsSelectionOnPopoverClose = resetsSelectionOnPopoverClose
         self.presentationMode = presentationMode
+        self.includesDisabledModules = includesDisabledModules
         requestedSection = initialSection
         self.onSelectionChange = onSelectionChange
     }
 
     var body: some View {
+        if case let .inlineDetails(section) = presentationMode {
+            inlineDetails(section)
+        } else {
+            dashboardBody
+        }
+    }
+
+    private var dashboardBody: some View {
         let visibleSections = MenuBarDashboardSection.visibleSections(
             in: model.monitorConfiguration,
-            snapshot: model.snapshot
+            snapshot: model.snapshot,
+            includesDisabledModules: includesDisabledModules
         )
         let networkProjection = MenuBarDashboardSection.requiresNetworkProjection(
             visibleSections: visibleSections,
             selectedSection: selection.selectedSection
         ) ? makeNetworkProjection() : .empty
 
-        HStack(alignment: .top, spacing: MenuBarDashboardLayout.columnSpacing) {
+        return HStack(alignment: .top, spacing: MenuBarDashboardLayout.columnSpacing) {
             primaryColumn(
                 networkProjection: networkProjection,
                 visibleSections: visibleSections
@@ -988,7 +1014,7 @@ struct MenuBarDashboardView: View {
     }
 
     private var dashboardOpacity: Double {
-        guard presentationMode == .embeddedPreview else { return 1 }
+        guard presentationMode == .embeddedPreview, !includesDisabledModules else { return 1 }
         return Double(
             MenuBarPopoverOpacityPolicy.resolvedAlphaValue(
                 preferredAlphaValue: model.monitorConfiguration.menuBarPopoverOpacity,
@@ -1701,6 +1727,60 @@ struct MenuBarDashboardView: View {
         )
     }
 
+    private func inlineDetails(_ section: MenuBarDashboardSection) -> some View {
+        let networkProjection = section == .network
+            ? makeNetworkProjection(usesActiveHardwareTotals: true)
+            : .empty
+        let primary = VStack(spacing: 12) {
+            detailSummaryCard(for: section, networkProjection: networkProjection)
+            switch section {
+            case .cpu: cpuCoresCard
+            case .memory: memoryBreakdownCard
+            case .gpu: gpuDevicesCard
+            case .storage: storageIOCard
+            case .fans: fanDetailsCard
+            case .battery where model.snapshot.battery.availability.isAvailable: batteryCapacityCard
+            default: EmptyView()
+            }
+        }
+        let secondary = VStack(spacing: 12) {
+            switch section {
+            case .cpu: cpuProcessesCard
+            case .memory: memoryProcessesCard
+            case .gpu: displayDevicesCard
+            case .storage: storageVolumesCard
+            case .fans:
+                temperatureDetailSummaryCard
+                thermalSensorsCard
+            case .battery where model.snapshot.battery.availability.isAvailable: batteryPowerCard
+            case .network, .sensors:
+                detailSupportingCards(for: section, networkProjection: networkProjection)
+            case .battery: EmptyView()
+            }
+        }
+
+        return ViewThatFits(in: .horizontal) {
+            HStack(alignment: .top, spacing: 12) {
+                primary.frame(minWidth: 260, maxWidth: .infinity)
+                if section != .battery || model.snapshot.battery.availability.isAvailable {
+                    secondary.frame(minWidth: 260, maxWidth: .infinity)
+                }
+            }
+            VStack(spacing: 12) {
+                primary
+                secondary
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .environment(\.inlineMonitorDetails, true)
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel(format(
+            "TraceHalo %@详细监控",
+            "TraceHalo %@ details",
+            section.localizedTitle(locale: locale)
+        ))
+    }
+
     private func toggleSelection(_ section: MenuBarDashboardSection) {
         if presentationMode == .embeddedPreview {
             selectSection(section)
@@ -1939,12 +2019,17 @@ struct MenuBarDashboardView: View {
             } else if model.snapshot.cpu.perCorePercent.isEmpty {
                 MenuUnavailableText(message: "系统未返回逐核心占用数据。")
             } else {
-                LazyVStack(spacing: 3) {
-                    ForEach(model.snapshot.cpu.perCorePercent.indices, id: \.self) { index in
-                        MenuCoreRow(
-                            index: index + 1,
-                            percent: model.snapshot.cpu.perCorePercent[index]
-                        )
+                let cores = model.snapshot.cpu.perCorePercent
+                let rows = ForEach(cores.indices, id: \.self) { index in
+                    MenuCoreRow(index: index + 1, percent: cores[index])
+                }
+                if presentationMode == .inlineDetails(.cpu) {
+                    LazyVGrid(columns: [GridItem(.adaptive(minimum: 145), spacing: 12)], spacing: 3) {
+                        rows
+                    }
+                } else {
+                    LazyVStack(spacing: 3) {
+                        rows
                     }
                 }
             }
@@ -2284,6 +2369,16 @@ struct MenuBarDashboardView: View {
     private func networkTrafficCard(networkProjection: MenuNetworkProjection) -> some View {
         let received = networkProjection.totalReceivedRate
         let sent = networkProjection.totalSentRate
+        let receivedHistory: [Double]
+        let sentHistory: [Double]
+        if presentationMode == .inlineDetails(.network) {
+            let samples = model.dashboardHistory.suffix(48)
+            receivedHistory = samples.compactMap(\.networkReceivedBytesPerSecond)
+            sentHistory = samples.compactMap(\.networkSentBytesPerSecond)
+        } else {
+            receivedHistory = model.history(for: .networkReceived)
+            sentHistory = model.history(for: .networkSent)
+        }
         return MenuMetricCard(title: "实时流量", symbol: "arrow.up.arrow.down", tint: MenuPalette.amber) {
             if !model.hasLoadedSnapshot {
                 MenuUnavailableText(message: "正在读取网络流量。")
@@ -2295,7 +2390,7 @@ struct MenuBarDashboardView: View {
                     } ?? "—"
                 )
                 MenuBarHistogram(
-                    values: model.history(for: .networkReceived),
+                    values: receivedHistory,
                     ceiling: nil,
                     color: MenuPalette.cyan,
                     maximumBarCount: 48
@@ -2308,7 +2403,7 @@ struct MenuBarDashboardView: View {
                     } ?? "—"
                 )
                 MenuBarHistogram(
-                    values: model.history(for: .networkSent),
+                    values: sentHistory,
                     ceiling: nil,
                     color: MenuPalette.amber,
                     maximumBarCount: 48
@@ -2636,7 +2731,7 @@ struct MenuBarDashboardView: View {
         preferredStorageVolume(in: model.snapshot.volumes)
     }
 
-    private func makeNetworkProjection() -> MenuNetworkProjection {
+    private func makeNetworkProjection(usesActiveHardwareTotals: Bool = false) -> MenuNetworkProjection {
         let interfaces = model.snapshot.networkInterfaces
         let services = interfaces.filter { interface in
             let name = interface.name.lowercased()
@@ -2652,6 +2747,14 @@ struct MenuBarDashboardView: View {
             return lhs.displayName.localizedStandardCompare(rhs.displayName) == .orderedAscending
         }
 
+        if usesActiveHardwareTotals {
+            let reading = DashboardNetworkReading(interfaces: interfaces)
+            return MenuNetworkProjection(
+                services: services,
+                totalReceivedRate: reading.receivedBytesPerSecond,
+                totalSentRate: reading.sentBytesPerSecond
+            )
+        }
         return MenuNetworkProjection(
             services: services,
             totalReceivedRate: sumIfAvailable(interfaces.compactMap(\.receivedBytesPerSecond)),
@@ -2739,13 +2842,13 @@ struct MenuBarDashboardView: View {
 
     private func perform(_ action: MonitorQuickAction) {
         if action == .traceHalo {
-            navigationRouter.navigate(to: .dashboard)
             if let openMainWindowAction {
                 openMainWindowAction()
             } else {
-                openWindow(id: "main")
+                navigationRouter.navigate(to: .dashboard)
+                openWindow(id: TraceHaloWindowIdentity.main.rawValue)
+                NSApplication.shared.activate(ignoringOtherApps: true)
             }
-            NSApplication.shared.activate(ignoringOtherApps: true)
             return
         }
 
@@ -2838,6 +2941,7 @@ struct MenuBarDashboardView: View {
 
 private struct MenuCoreRow: View {
     @Environment(\.locale) private var locale
+    @Environment(\.inlineMonitorDetails) private var inline
     let index: Int
     let percent: Double
 
@@ -2849,18 +2953,18 @@ private struct MenuCoreRow: View {
                 locale: locale,
                 Int64(index)
             ))
-                .font(.system(size: 10.5, weight: .medium))
+                .font(.system(size: inline ? 13 : 10.5, weight: .medium))
                 .lineLimit(1)
                 .frame(width: 70, alignment: .leading)
             MenuProgressBar(fraction: percent / 100, tint: MenuPalette.blue)
             Text(MetricFormatter.percent(percent, locale: locale))
-                .font(.system(size: 9.5, weight: .medium, design: .rounded))
+                .font(.system(size: inline ? 12 : 9.5, weight: .medium, design: .rounded))
                 .foregroundStyle(CalmTheme.secondaryText)
                 .monospacedDigit()
                 .lineLimit(1)
-                .frame(width: 35, alignment: .trailing)
+                .frame(width: inline ? 45 : 35, alignment: .trailing)
         }
-        .frame(height: 12)
+        .frame(height: inline ? 18 : 12)
         .accessibilityElement(children: .combine)
         .accessibilityLabel(MenuMonitorLocalization.format(
             "核心 %lld，%@",
@@ -2874,6 +2978,7 @@ private struct MenuCoreRow: View {
 
 private struct MenuProcessRow: View {
     @Environment(\.locale) private var locale
+    @Environment(\.inlineMonitorDetails) private var inline
     let process: ProcessUsage
     let icon: NSImage?
 
@@ -2887,14 +2992,14 @@ private struct MenuProcessRow: View {
                         .scaledToFit()
                 } else {
                     Image(systemName: "app.dashed")
-                        .font(.system(size: 10.5, weight: .medium))
+                        .font(.system(size: inline ? 13 : 10.5, weight: .medium))
                         .foregroundStyle(CalmTheme.secondaryText)
                 }
             }
-            .frame(width: 14, height: 14)
+            .frame(width: inline ? 18 : 14, height: inline ? 18 : 14)
 
             Text(process.name)
-                .font(.system(size: 10.5, weight: .medium))
+                .font(.system(size: inline ? 13 : 10.5, weight: .medium))
                 .lineLimit(1)
                 .truncationMode(.middle)
             Spacer(minLength: 4)
@@ -2903,11 +3008,11 @@ private struct MenuProcessRow: View {
                 fractionDigits: 1,
                 locale: locale
             ))
-                .font(.system(size: 10.5, weight: .semibold, design: .rounded))
+                .font(.system(size: inline ? 13 : 10.5, weight: .semibold, design: .rounded))
                 .monospacedDigit()
                 .lineLimit(1)
         }
-        .frame(height: 14)
+        .frame(height: inline ? 22 : 14)
         .accessibilityElement(children: .combine)
         .accessibilityLabel(MenuMonitorLocalization.format(
             "%@，CPU %@",
@@ -2925,6 +3030,7 @@ private struct MenuProcessRow: View {
 
 private struct MenuProcessMetricRow: View {
     @Environment(\.locale) private var locale
+    @Environment(\.inlineMonitorDetails) private var inline
     let process: ProcessUsage
     let icon: NSImage?
     let value: String
@@ -2940,23 +3046,23 @@ private struct MenuProcessMetricRow: View {
                         .scaledToFit()
                 } else {
                     Image(systemName: "app.dashed")
-                        .font(.system(size: 10.5, weight: .medium))
+                        .font(.system(size: inline ? 13 : 10.5, weight: .medium))
                         .foregroundStyle(CalmTheme.secondaryText)
                 }
             }
-            .frame(width: 14, height: 14)
+            .frame(width: inline ? 18 : 14, height: inline ? 18 : 14)
 
             Text(process.name)
-                .font(.system(size: 10.5, weight: .medium))
+                .font(.system(size: inline ? 13 : 10.5, weight: .medium))
                 .lineLimit(1)
                 .truncationMode(.middle)
             Spacer(minLength: 4)
             Text(value)
-                .font(.system(size: 9.5, weight: .semibold, design: .rounded))
+                .font(.system(size: inline ? 12 : 9.5, weight: .semibold, design: .rounded))
                 .monospacedDigit()
                 .lineLimit(1)
         }
-        .frame(height: 14)
+        .frame(height: inline ? 22 : 14)
         .accessibilityElement(children: .combine)
         .accessibilityLabel(MenuMonitorLocalization.format(
             "%@，%@ %@",
@@ -2971,13 +3077,14 @@ private struct MenuProcessMetricRow: View {
 
 private struct MenuDisplayDetailRow: View {
     @Environment(\.locale) private var locale
+    @Environment(\.inlineMonitorDetails) private var inline
     let display: DisplayDevice
 
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
             HStack(spacing: 6) {
                 Text(MenuMonitorLocalization.catalogString(display.name, locale: locale))
-                    .font(.system(size: 10.5, weight: .semibold))
+                    .font(.system(size: inline ? 13 : 10.5, weight: .semibold))
                     .lineLimit(1)
                 Spacer(minLength: 4)
                 if display.isMain {
@@ -3021,16 +3128,17 @@ private struct MenuDisplayDetailRow: View {
 
 private struct MenuStorageVolumeDetail: View {
     @Environment(\.locale) private var locale
+    @Environment(\.inlineMonitorDetails) private var inline
     let volume: StorageVolume
 
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
             Text(volume.name)
-                .font(.system(size: 10.5, weight: .semibold))
+                .font(.system(size: inline ? 13 : 10.5, weight: .semibold))
                 .lineLimit(1)
                 .truncationMode(.middle)
             Text(volume.path)
-                .font(.system(size: 8.5, design: .monospaced))
+                .font(.system(size: inline ? 11 : 8.5, design: .monospaced))
                 .foregroundStyle(CalmTheme.tertiaryText)
                 .lineLimit(1)
                 .truncationMode(.middle)
@@ -3069,6 +3177,7 @@ private struct MenuStorageVolumeDetail: View {
 
 private struct MenuNetworkInterfaceDetail: View {
     @Environment(\.locale) private var locale
+    @Environment(\.inlineMonitorDetails) private var inline
     let interface: NetworkInterfaceState
     let symbol: String
 
@@ -3076,11 +3185,11 @@ private struct MenuNetworkInterfaceDetail: View {
         VStack(alignment: .leading, spacing: 4) {
             HStack(spacing: 7) {
                 Image(systemName: symbol)
-                    .font(.system(size: 11, weight: .semibold))
+                    .font(.system(size: inline ? 13 : 11, weight: .semibold))
                     .foregroundStyle(interface.isActive ? MenuPalette.amber : CalmTheme.secondaryText)
                     .frame(width: 16)
                 Text(MenuMonitorLocalization.catalogString(interface.displayName, locale: locale))
-                    .font(.system(size: 10.5, weight: .semibold))
+                    .font(.system(size: inline ? 13 : 10.5, weight: .semibold))
                     .lineLimit(1)
                 Spacer(minLength: 4)
                 Text(MenuMonitorLocalization.string(
@@ -3088,7 +3197,7 @@ private struct MenuNetworkInterfaceDetail: View {
                     english: interface.isActive ? "Connected" : "Disconnected",
                     locale: locale
                 ))
-                    .font(.system(size: 8.5, weight: .semibold))
+                    .font(.system(size: inline ? 11 : 8.5, weight: .semibold))
                     .foregroundStyle(interface.isActive ? CalmTheme.mint : CalmTheme.secondaryText)
             }
             MenuValueRow(label: "接口", value: interface.name)
@@ -3124,16 +3233,17 @@ private struct MenuNetworkInterfaceDetail: View {
 
 private struct MenuFanDetail: View {
     @Environment(\.locale) private var locale
+    @Environment(\.inlineMonitorDetails) private var inline
     let fan: FanState
 
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
             HStack {
                 Text(fan.name)
-                    .font(.system(size: 10.5, weight: .semibold))
+                    .font(.system(size: inline ? 13 : 10.5, weight: .semibold))
                 Spacer(minLength: 4)
                 Text("\(fan.currentRPM.formatted(.number.locale(locale))) RPM")
-                    .font(.system(size: 10, weight: .semibold, design: .rounded))
+                    .font(.system(size: inline ? 13 : 10, weight: .semibold, design: .rounded))
                     .monospacedDigit()
             }
             if let maximum = fan.maximumRPM, maximum > 0 {
@@ -3167,6 +3277,7 @@ private struct MenuFanDetail: View {
 
 private struct MenuThermalSensorRow: View {
     @Environment(\.locale) private var locale
+    @Environment(\.inlineMonitorDetails) private var inline
     let sensor: ThermalSensor
     let unit: TemperatureUnit
 
@@ -3174,16 +3285,16 @@ private struct MenuThermalSensorRow: View {
         HStack(spacing: 7) {
             VStack(alignment: .leading, spacing: 1) {
                 Text(sensor.name)
-                    .font(.system(size: 10.5, weight: .medium))
+                    .font(.system(size: inline ? 13 : 10.5, weight: .medium))
                     .lineLimit(1)
                 Text(MenuMonitorLocalization.catalogString(sensor.group, locale: locale))
-                    .font(.system(size: 8.5))
+                    .font(.system(size: inline ? 11 : 8.5))
                     .foregroundStyle(CalmTheme.tertiaryText)
                     .lineLimit(1)
             }
             Spacer(minLength: 5)
             Text(unit.formatted(celsius: sensor.temperatureCelsius, locale: locale))
-                .font(.system(size: 10.5, weight: .semibold, design: .rounded))
+                .font(.system(size: inline ? 13 : 10.5, weight: .semibold, design: .rounded))
                 .foregroundStyle(MenuPalette.green)
                 .monospacedDigit()
         }
@@ -3567,6 +3678,7 @@ private struct MenuQuitApplicationButton: View {
 
 private struct MenuMetricCard<Content: View>: View {
     @Environment(\.locale) private var locale
+    @Environment(\.inlineMonitorDetails) private var inline
     let title: String
     let symbol: String
     let tint: Color
@@ -3638,11 +3750,11 @@ private struct MenuMetricCard<Content: View>: View {
     }
 
     private func cardBody(showsDisclosure: Bool) -> some View {
-        VStack(alignment: .leading, spacing: 5) {
+        VStack(alignment: .leading, spacing: inline ? 8 : 5) {
             headerLabel(showsDisclosure: showsDisclosure)
             content
         }
-        .padding(9)
+        .padding(inline ? 14 : 9)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(
             isSelected ? tint.opacity(0.075) : CalmTheme.surface,
@@ -3659,13 +3771,14 @@ private struct MenuMetricCard<Content: View>: View {
     private func headerLabel(showsDisclosure: Bool) -> some View {
         HStack(spacing: 7) {
             Image(systemName: symbol)
-                .font(.system(size: 11.5, weight: .semibold))
+                .font(.system(size: inline ? 14 : 11.5, weight: .semibold))
                 .foregroundStyle(tint)
                 .frame(width: 17)
             Text(MenuMonitorLocalization.catalogString(title, locale: locale))
-                .font(.system(size: 11.5, weight: .semibold))
+                .font(.system(size: inline ? 14 : 11.5, weight: .semibold))
                 .foregroundStyle(isSelected ? Color.primary : CalmTheme.secondaryText)
                 .lineLimit(1)
+                .accessibilityAddTraits(inline ? .isHeader : [])
             Spacer(minLength: 5)
             if let trailing {
                 Text(trailing)
@@ -3698,6 +3811,7 @@ private struct MenuMetricCard<Content: View>: View {
 
 private struct MenuProgressRow: View {
     @Environment(\.locale) private var locale
+    @Environment(\.inlineMonitorDetails) private var inline
     let label: String
     let value: String
     let fraction: Double
@@ -3707,13 +3821,13 @@ private struct MenuProgressRow: View {
     var body: some View {
         HStack(spacing: 7) {
             Text(MenuMonitorLocalization.catalogString(label, locale: locale))
-                .font(.system(size: 10.5))
+                .font(.system(size: inline ? 13 : 10.5))
                 .foregroundStyle(CalmTheme.secondaryText)
                 .lineLimit(1)
-                .frame(width: 52, alignment: .leading)
+                .frame(width: inline ? 116 : 52, alignment: .leading)
             MenuProgressBar(fraction: fraction, tint: tint)
             Text(value)
-                .font(.system(size: 10.5, weight: .medium, design: .rounded))
+                .font(.system(size: inline ? 13 : 10.5, weight: .medium, design: .rounded))
                 .monospacedDigit()
                 .lineLimit(1)
                 .frame(minWidth: 37, alignment: .trailing)
@@ -3745,6 +3859,7 @@ private struct MenuProgressBar: View {
 
 private struct MenuValueRow: View {
     @Environment(\.locale) private var locale
+    @Environment(\.inlineMonitorDetails) private var inline
     let label: String
     let value: String
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -3761,18 +3876,19 @@ private struct MenuValueRow: View {
                 .minimumScaleFactor(0.8)
                 .contentTransition(.numericText())
         }
-        .font(.system(size: 10.5))
+        .font(.system(size: inline ? 13 : 10.5))
         .animation(reduceMotion ? nil : .easeOut(duration: 0.22), value: value)
     }
 }
 
 private struct MenuUnavailableText: View {
     @Environment(\.locale) private var locale
+    @Environment(\.inlineMonitorDetails) private var inline
     let message: String
 
     var body: some View {
         Text(MenuMonitorLocalization.catalogString(message, locale: locale))
-            .font(.system(size: 9.5))
+            .font(.system(size: inline ? 12 : 9.5))
             .foregroundStyle(CalmTheme.tertiaryText)
             .fixedSize(horizontal: false, vertical: true)
     }

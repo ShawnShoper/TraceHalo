@@ -856,6 +856,7 @@ public struct ApplicationCandidate: Identifiable, Equatable, Sendable {
     public var bundleURL: URL
     public var sizeBytes: UInt64?
     public var associatedFiles: [AssociatedFile]
+    public var vendorUninstaller: VendorUninstaller?
 
     public init(
         name: String,
@@ -863,7 +864,8 @@ public struct ApplicationCandidate: Identifiable, Equatable, Sendable {
         version: String?,
         bundleURL: URL,
         sizeBytes: UInt64? = nil,
-        associatedFiles: [AssociatedFile] = []
+        associatedFiles: [AssociatedFile] = [],
+        vendorUninstaller: VendorUninstaller? = nil
     ) {
         self.name = name
         self.bundleIdentifier = bundleIdentifier
@@ -871,6 +873,7 @@ public struct ApplicationCandidate: Identifiable, Equatable, Sendable {
         self.bundleURL = bundleURL
         self.sizeBytes = sizeBytes
         self.associatedFiles = associatedFiles
+        self.vendorUninstaller = vendorUninstaller
     }
 }
 

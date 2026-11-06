@@ -166,7 +166,7 @@ struct StorageView: View {
                     title: localized("存储"),
                     subtitle: localized("查看卷使用情况、设备信息、健康指标与 I/O 活动"),
                     symbol: "internaldrive",
-                    trailing: model.snapshot.volumes.isEmpty ? nil : AnyView(volumeMenu)
+                    trailing: model.snapshot.volumes.count > 1 ? AnyView(volumeMenu) : nil
                 )
 
                 if let volume = selectedVolume {
@@ -254,10 +254,13 @@ struct StorageView: View {
                 RoundedRectangle(cornerRadius: 9)
                     .strokeBorder(CalmTheme.strongHairline)
             }
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel(selectedVolume?.name ?? localized("选择卷"))
         }
         .menuStyle(.button)
         .buttonStyle(.plain)
         .accessibilityLabel(localized("选择存储卷"))
+        .accessibilityValue(selectedVolume?.name ?? "")
     }
 
     private func overviewCard(_ volume: StorageVolume) -> some View {

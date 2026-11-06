@@ -30,6 +30,7 @@ struct RootView: View {
                     destinationView(navigationRouter.destination ?? .dashboard)
                         .redacted(reason: showsStartupOverlay ? .placeholder : [])
                         .allowsHitTesting(!showsStartupOverlay)
+                        .padding(.top, isSidebarCollapsed ? 42 : 0)
                         .animation(
                             SidebarMotionPolicy.easeOutAnimation(
                                 reduceMotion: reduceMotion,
@@ -90,7 +91,9 @@ struct RootView: View {
             navigationRouter.navigate(to: supportedDestination(destination))
         }
         .onChange(of: navigationRouter.destination) { _, newValue in
-            if let newValue { lastDestination = newValue.rawValue }
+            if let newValue {
+                lastDestination = (newValue == .monitor ? AppDestination.dashboard : newValue).rawValue
+            }
         }
     }
 
@@ -102,9 +105,6 @@ struct RootView: View {
                 LazyVStack(alignment: .leading, spacing: 4) {
                     SidebarNavigationRow(destination: .dashboard) {
                         navigationRouter.navigate(to: .dashboard)
-                    }
-                    SidebarNavigationRow(destination: .monitor) {
-                        navigationRouter.navigate(to: .monitor)
                     }
                     SidebarDisclosureGroup(
                         title: "系统工具",
@@ -361,7 +361,7 @@ private struct SidebarNavigationRow: View {
                         weight: isSelected ? .semibold : .medium
                     ))
                     .symbolRenderingMode(.monochrome)
-                    .foregroundStyle(isSelected ? Color.white : CalmTheme.secondaryText)
+                    .foregroundStyle(isSelected ? CalmTheme.selectionText : CalmTheme.secondaryText)
                     .frame(width: SidebarLayout.iconSize, height: SidebarLayout.iconSize)
 
                 Text(sidebarTitle)
@@ -369,7 +369,7 @@ private struct SidebarNavigationRow: View {
                         size: isChild ? SidebarLayout.childFontSize : SidebarLayout.primaryFontSize,
                         weight: isSelected ? .semibold : .medium
                     ))
-                    .foregroundStyle(isSelected ? Color.white : CalmTheme.primaryText)
+                    .foregroundStyle(isSelected ? CalmTheme.selectionText : CalmTheme.primaryText)
                     .lineLimit(1)
                     .fixedSize(horizontal: true, vertical: false)
 
@@ -384,7 +384,7 @@ private struct SidebarNavigationRow: View {
             }
             .overlay {
                 RoundedRectangle(cornerRadius: CalmTheme.sidebarRowRadius, style: .continuous)
-                    .strokeBorder(isSelected ? CalmTheme.accent.opacity(0.32) : Color.clear)
+                    .strokeBorder(isSelected ? CalmTheme.accent.opacity(0.18) : Color.clear)
             }
         }
         .buttonStyle(.plain)
@@ -407,13 +407,14 @@ private struct SidebarNavigationRow: View {
     }
 
     private var rowBackground: Color {
-        if isSelected { return CalmTheme.primaryAction }
+        if isSelected { return CalmTheme.selectionBackground }
         if isHovering { return CalmTheme.sidebarHover }
         return .clear
     }
 
     private var isSelected: Bool {
         navigationRouter.destination == destination
+            || (destination == .dashboard && navigationRouter.destination == .monitor)
     }
 
     private var sidebarTitle: String {
@@ -454,7 +455,7 @@ enum SidebarLayout {
         for destination: AppDestination
     ) -> (key: String, defaultValue: String) {
         switch destination {
-        case .monitor: ("sidebar.title.monitor", "实时监控")
+        case .dashboard: ("sidebar.title.monitor", "实时监控")
         case .optimizer: ("sidebar.title.optimizer", "启动优化")
         case .uninstaller: ("sidebar.title.uninstaller", "应用管理")
         case .inputDevices: ("sidebar.title.inputDevices", "键盘鼠标")

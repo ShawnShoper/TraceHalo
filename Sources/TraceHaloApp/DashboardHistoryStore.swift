@@ -424,17 +424,13 @@ actor DashboardHistoryStore: DashboardHistoryPersisting {
     }
 
     private static func isValid(_ sample: DashboardTelemetrySample) -> Bool {
-        let requiredValues = [
-            sample.cpuPercent,
-            sample.memoryPressurePercent,
+        let networkRates = [
             sample.networkReceivedBytesPerSecond,
             sample.networkSentBytesPerSecond
-        ]
-        guard requiredValues.allSatisfy(\.isFinite),
-              (0 ... 100).contains(sample.cpuPercent),
+        ].compactMap { $0 }
+        guard (0 ... 100).contains(sample.cpuPercent),
               (0 ... 100).contains(sample.memoryPressurePercent),
-              sample.networkReceivedBytesPerSecond >= 0,
-              sample.networkSentBytesPerSecond >= 0
+              networkRates.allSatisfy({ $0.isFinite && $0 >= 0 })
         else {
             return false
         }

@@ -51,6 +51,13 @@
 		D363260A065AC90F04F25E35 /* FeatureModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 11C4968F28DF922F78454999 /* FeatureModels.swift */; };
 		D39EB80BF8CD812387F23631 /* TraceHaloApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = EBAC7D40DE2DE38337E5F45D /* TraceHaloApp.swift */; };
 		D679CAF6FCD43128FD22EF52 /* ScanningServices.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0C6BF8BA18A12048F240D310 /* ScanningServices.swift */; };
+		D11FA98B470B7D62000A0002 /* PrivilegedUninstall.swift in Sources */ = {isa = PBXBuildFile; fileRef = D11FA98B470B7D62000A0001 /* PrivilegedUninstall.swift */; };
+		D11FA98B470B7D62000A0004 /* PrivilegedUninstallClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = D11FA98B470B7D62000A0003 /* PrivilegedUninstallClient.swift */; };
+		D11FA98B470B7D62000A0006 /* PrivilegedUninstallMain.swift in Sources */ = {isa = PBXBuildFile; fileRef = D11FA98B470B7D62000A0005 /* PrivilegedUninstallMain.swift */; };
+		D11FA98B470B7D62000A0008 /* TraceHaloUninstallHelper in Embed Helpers */ = {isa = PBXBuildFile; fileRef = D11FA98B470B7D62000A0007 /* TraceHaloUninstallHelper */; settings = {ATTRIBUTES = (CodeSignOnCopy, ); }; };
+		D11FA98B470B7D62000A000A /* com.tseai.tracehalo.uninstall-helper.plist in Copy LaunchDaemon Configuration */ = {isa = PBXBuildFile; fileRef = D11FA98B470B7D62000A0009 /* com.tseai.tracehalo.uninstall-helper.plist */; };
+		D11FA98B470B7D62000A000B /* libTraceHaloCore.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 546DAEF196C9D2193CCD342F /* libTraceHaloCore.a */; };
+		5D9BFEAB27B649E08A1A2367 /* VendorUninstaller.swift in Sources */ = {isa = PBXBuildFile; fileRef = 392A92A09D5A48F2A5230625 /* VendorUninstaller.swift */; };
 		D7AD900369853E3D7A108163 /* AppNavigationRouter.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1074D262DC7DE1D264797BB /* AppNavigationRouter.swift */; };
 		DCE6909DD8D8235EF5EEA6B2 /* Localizable.strings in Resources */ = {isa = PBXBuildFile; fileRef = 529396A8CA2E169A6A2C4484 /* Localizable.strings */; };
 		E98BCA7680CAC1243D1DDE3A /* SystemModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6A07E3D5A4482244CF159568 /* SystemModels.swift */; };
@@ -83,6 +90,20 @@
 			remoteGlobalIDString = 2BBCA66E3BB64165D3AFB263;
 			remoteInfo = TraceHaloCore;
 		};
+		D11FA98B470B7D62000A000C /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = AC167F3E17FAE47E6F7F8244 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = D11FA98B470B7D62000A0011;
+			remoteInfo = TraceHaloUninstallHelper;
+		};
+		D11FA98B470B7D62000A000D /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = AC167F3E17FAE47E6F7F8244 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 2BBCA66E3BB64165D3AFB263;
+			remoteInfo = TraceHaloCore;
+		};
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXCopyFilesBuildPhase section */
@@ -93,19 +114,21 @@
 			dstSubfolderSpec = 1;
 			files = (
 				17F2B62C8F70498FFF0EC041 /* com.tseai.tracehalo.sensor-helper.plist in Copy LaunchDaemon Configuration */,
+				D11FA98B470B7D62000A000A /* com.tseai.tracehalo.uninstall-helper.plist in Copy LaunchDaemon Configuration */,
 			);
 			name = "Copy LaunchDaemon Configuration";
 			runOnlyForDeploymentPostprocessing = 0;
 		};
-		E389A2DA22B0C582F32BE534 /* Embed Sensor Helper */ = {
+		E389A2DA22B0C582F32BE534 /* Embed Helpers */ = {
 			isa = PBXCopyFilesBuildPhase;
 			buildActionMask = 2147483647;
 			dstPath = "";
 			dstSubfolderSpec = 7;
 			files = (
-				B872289AE610EA318C48B367 /* TraceHaloSensorHelper in Embed Sensor Helper */,
+				B872289AE610EA318C48B367 /* TraceHaloSensorHelper in Embed Helpers */,
+				D11FA98B470B7D62000A0008 /* TraceHaloUninstallHelper in Embed Helpers */,
 			);
-			name = "Embed Sensor Helper";
+			name = "Embed Helpers";
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXCopyFilesBuildPhase section */
@@ -116,6 +139,7 @@
 		0A6DF58994C1264DCD78BB93 /* Package.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Package.swift; sourceTree = SOURCE_ROOT; };
 		0AFA4F181438F2B4064712D4 /* SensorHelperBridge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SensorHelperBridge.swift; sourceTree = "<group>"; };
 		0C6BF8BA18A12048F240D310 /* ScanningServices.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScanningServices.swift; sourceTree = "<group>"; };
+		392A92A09D5A48F2A5230625 /* VendorUninstaller.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VendorUninstaller.swift; sourceTree = "<group>"; };
 		0CE52F8D3098F59F2331B101 /* MenuMonitorLocalization.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuMonitorLocalization.swift; sourceTree = "<group>"; };
 		11C4968F28DF922F78454999 /* FeatureModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FeatureModels.swift; sourceTree = "<group>"; };
 		19FFE3737CB264A80169E19C /* MenuBarStatusItemController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuBarStatusItemController.swift; sourceTree = "<group>"; };
@@ -168,6 +192,11 @@
 		F1074D262DC7DE1D264797BB /* AppNavigationRouter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppNavigationRouter.swift; sourceTree = "<group>"; };
 		F377ADE9EDC226C7950A24B9 /* HardwareViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HardwareViews.swift; sourceTree = "<group>"; };
 		FC4F1B70C697FF294ACF5CE7 /* ToolViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ToolViews.swift; sourceTree = "<group>"; };
+		D11FA98B470B7D62000A0001 /* PrivilegedUninstall.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PrivilegedUninstall.swift; sourceTree = "<group>"; };
+		D11FA98B470B7D62000A0003 /* PrivilegedUninstallClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PrivilegedUninstallClient.swift; sourceTree = "<group>"; };
+		D11FA98B470B7D62000A0005 /* PrivilegedUninstallMain.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PrivilegedUninstallMain.swift; sourceTree = "<group>"; };
+		D11FA98B470B7D62000A0007 /* TraceHaloUninstallHelper */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = TraceHaloUninstallHelper; sourceTree = BUILT_PRODUCTS_DIR; };
+		D11FA98B470B7D62000A0009 /* com.tseai.tracehalo.uninstall-helper.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = "com.tseai.tracehalo.uninstall-helper.plist"; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -194,6 +223,14 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		D11FA98B470B7D62000A000E /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				D11FA98B470B7D62000A000B /* libTraceHaloCore.a in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
@@ -216,6 +253,7 @@
 				0CE52F8D3098F59F2331B101 /* MenuMonitorLocalization.swift */,
 				3F8CF205C8D7FFCAC25C82AA /* MonitorView.swift */,
 				65917C60D0A0A06049D7172E /* PreferencesPersistenceController.swift */,
+				D11FA98B470B7D62000A0003 /* PrivilegedUninstallClient.swift */,
 				060F0D591FB97C9CAA9238F0 /* ReportPDFExporter.swift */,
 				864F6E696450A48691951042 /* ReportSettingsViews.swift */,
 				228F099976214B2C8F91C786 /* RootView.swift */,
@@ -238,6 +276,7 @@
 				37716422764497191408236F /* Sources/TraceHaloApp */,
 				9C863E3A8F68AE552E7E5533 /* Sources/TraceHaloCore */,
 				E1B5A565BB687BC495D466C2 /* Sources/TraceHaloSensorHelper */,
+				D11FA98B470B7D62000A0010 /* Sources/TraceHaloUninstallHelper */,
 				C66251BF0301F2DA0A114182 /* Sources/TraceHaloApp/Resources */,
 				E938A398A3527637F1C04BE9 /* Resources */,
 				D76807AF6A0F2F576CDFC8F9 /* Xcode/TraceHalo */,
@@ -260,12 +299,14 @@
 				822A120DEAB0620EC8A4B904 /* InputDeviceReader.swift */,
 				AE02CA7C9E6B07B11E12785F /* LiveServices.swift */,
 				4DE9A64F8AF04ABE64DCA57A /* NetworkServiceNaming.swift */,
+				D11FA98B470B7D62000A0001 /* PrivilegedUninstall.swift */,
 				70E7F07429E1D2C7FF43A665 /* SMCSensorReader.swift */,
 				77A6EB48C784B8096D699CF7 /* Safety.swift */,
 				0C6BF8BA18A12048F240D310 /* ScanningServices.swift */,
 				0AFA4F181438F2B4064712D4 /* SensorHelperBridge.swift */,
 				5ED29E7DB7EFBE7184DD4BC7 /* StorageIOReader.swift */,
 				6A07E3D5A4482244CF159568 /* SystemModels.swift */,
+				392A92A09D5A48F2A5230625 /* VendorUninstaller.swift */,
 			);
 			path = Sources/TraceHaloCore;
 			sourceTree = SOURCE_ROOT;
@@ -276,6 +317,7 @@
 				44612BE4EF7031AD9A3F3D3B /* TraceHalo.app */,
 				546DAEF196C9D2193CCD342F /* libTraceHaloCore.a */,
 				4EABD40A9A4273E24A772E3A /* TraceHaloSensorHelper */,
+				D11FA98B470B7D62000A0007 /* TraceHaloUninstallHelper */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -311,8 +353,17 @@
 			isa = PBXGroup;
 			children = (
 				7F718BE2F7525544D8C7D76E /* com.tseai.tracehalo.sensor-helper.plist */,
+				D11FA98B470B7D62000A0009 /* com.tseai.tracehalo.uninstall-helper.plist */,
 			);
 			path = Resources;
+			sourceTree = SOURCE_ROOT;
+		};
+		D11FA98B470B7D62000A0010 /* Sources/TraceHaloUninstallHelper */ = {
+			isa = PBXGroup;
+			children = (
+				D11FA98B470B7D62000A0005 /* PrivilegedUninstallMain.swift */,
+			);
+			path = Sources/TraceHaloUninstallHelper;
 			sourceTree = SOURCE_ROOT;
 		};
 /* End PBXGroup section */
@@ -326,8 +377,8 @@
 				E50056DC944E3070A4C65070 /* Frameworks */,
 				3A830EE19039FFAACDDFE03C /* Resources */,
 				C6ED929B5BCB79D79A5FE3B1 /* Embed Core Localization Bundle */,
-				E389A2DA22B0C582F32BE534 /* Embed Sensor Helper */,
-				A46E7C7B54C04669B7C8894F /* Sign Sensor Helper with Stable Identifier */,
+				E389A2DA22B0C582F32BE534 /* Embed Helpers */,
+				A46E7C7B54C04669B7C8894F /* Sign Helpers with Stable Identifiers */,
 				08F745EB940A6D4A05DE710E /* Copy LaunchDaemon Configuration */,
 			);
 			buildRules = (
@@ -335,6 +386,7 @@
 			dependencies = (
 				AB3E314CAE2C74CA0AD6B090 /* PBXTargetDependency */,
 				C4AA7ACD0FC546E182C0661F /* PBXTargetDependency */,
+				D11FA98B470B7D62000A0012 /* PBXTargetDependency */,
 			);
 			name = TraceHalo;
 			productName = TraceHalo;
@@ -374,6 +426,23 @@
 			productReference = 4EABD40A9A4273E24A772E3A /* TraceHaloSensorHelper */;
 			productType = "com.apple.product-type.tool";
 		};
+		D11FA98B470B7D62000A0011 /* TraceHaloUninstallHelper */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = D11FA98B470B7D62000A0016 /* Build configuration list for PBXNativeTarget "TraceHaloUninstallHelper" */;
+			buildPhases = (
+				D11FA98B470B7D62000A000F /* Sources */,
+				D11FA98B470B7D62000A000E /* Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				D11FA98B470B7D62000A0013 /* PBXTargetDependency */,
+			);
+			name = TraceHaloUninstallHelper;
+			productName = TraceHaloUninstallHelper;
+			productReference = D11FA98B470B7D62000A0007 /* TraceHaloUninstallHelper */;
+			productType = "com.apple.product-type.tool";
+		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -391,6 +460,9 @@
 						CreatedOnToolsVersion = 26.0;
 					};
 					40DC65E13E04E526EC80FF54 = {
+						CreatedOnToolsVersion = 26.0;
+					};
+					D11FA98B470B7D62000A0011 = {
 						CreatedOnToolsVersion = 26.0;
 					};
 				};
@@ -412,6 +484,7 @@
 				02133EE1B14C6591B7132CB7 /* TraceHalo */,
 				2BBCA66E3BB64165D3AFB263 /* TraceHaloCore */,
 				40DC65E13E04E526EC80FF54 /* TraceHaloSensorHelper */,
+				D11FA98B470B7D62000A0011 /* TraceHaloUninstallHelper */,
 			);
 		};
 /* End PBXProject section */
@@ -429,7 +502,7 @@
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXShellScriptBuildPhase section */
-		A46E7C7B54C04669B7C8894F /* Sign Sensor Helper with Stable Identifier */ = {
+		A46E7C7B54C04669B7C8894F /* Sign Helpers with Stable Identifiers */ = {
 			isa = PBXShellScriptBuildPhase;
 			alwaysOutOfDate = 1;
 			buildActionMask = 2147483647;
@@ -437,13 +510,14 @@
 			);
 			inputPaths = (
 				"$(TARGET_BUILD_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/TraceHaloSensorHelper",
+				"$(TARGET_BUILD_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/TraceHaloUninstallHelper",
 			);
-			name = "Sign Sensor Helper with Stable Identifier";
+			name = "Sign Helpers with Stable Identifiers";
 			outputPaths = (
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/zsh;
-			shellScript = "set -euo pipefail\nif [[ \"${CODE_SIGNING_ALLOWED:-NO}\" != \"YES\" ]]; then\n    exit 0\nfi\nHELPER_PATH=\"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/TraceHaloSensorHelper\"\nif [[ ! -f \"${HELPER_PATH}\" ]]; then\n    echo \"error: Embedded sensor helper was not found at ${HELPER_PATH}\" >&2\n    exit 1\nfi\nSIGNING_IDENTITY=\"${EXPANDED_CODE_SIGN_IDENTITY:--}\"\nif [[ -z \"${SIGNING_IDENTITY}\" ]]; then\n    SIGNING_IDENTITY=\"-\"\nfi\nSIGNING_ARGUMENTS=(\n    --force\n    --sign \"${SIGNING_IDENTITY}\"\n    --identifier com.tseai.tracehalo.sensor-helper\n)\nif [[ \"${EXPANDED_CODE_SIGN_IDENTITY_NAME:-}\" == \"Developer ID Application:\"* ]]; then\n    SIGNING_ARGUMENTS+=(--timestamp)\nelse\n    SIGNING_ARGUMENTS+=(--timestamp=none)\nfi\nif [[ \"${ENABLE_HARDENED_RUNTIME:-NO}\" == \"YES\" ]]; then\n    SIGNING_ARGUMENTS+=(--options runtime)\nfi\n/usr/bin/codesign \"${SIGNING_ARGUMENTS[@]}\" \"${HELPER_PATH}\"\n";
+			shellScript = "set -euo pipefail\nif [[ \"${CODE_SIGNING_ALLOWED:-NO}\" != \"YES\" ]]; then\n    exit 0\nfi\nSIGNING_IDENTITY=\"${EXPANDED_CODE_SIGN_IDENTITY:--}\"\nif [[ -z \"${SIGNING_IDENTITY}\" ]]; then\n    SIGNING_IDENTITY=\"-\"\nfi\nSIGNING_ARGUMENTS=(--force --sign \"${SIGNING_IDENTITY}\")\nif [[ \"${EXPANDED_CODE_SIGN_IDENTITY_NAME:-}\" == \"Developer ID Application:\"* ]]; then\n    SIGNING_ARGUMENTS+=(--timestamp)\nelse\n    SIGNING_ARGUMENTS+=(--timestamp=none)\nfi\nif [[ \"${ENABLE_HARDENED_RUNTIME:-NO}\" == \"YES\" ]]; then\n    SIGNING_ARGUMENTS+=(--options runtime)\nfi\nsign_helper() {\n    local executable=\"$1\"\n    local identifier=\"$2\"\n    local helper_path=\"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/${executable}\"\n    if [[ ! -f \"${helper_path}\" ]]; then\n        echo \"error: Embedded helper was not found at ${helper_path}\" >&2\n        exit 1\n    fi\n    /usr/bin/codesign \"${SIGNING_ARGUMENTS[@]}\" --identifier \"${identifier}\" \"${helper_path}\"\n}\nsign_helper TraceHaloSensorHelper com.tseai.tracehalo.sensor-helper\nsign_helper TraceHaloUninstallHelper com.tseai.tracehalo.uninstall-helper\n";
 		};
 		C6ED929B5BCB79D79A5FE3B1 /* Embed Core Localization Bundle */ = {
 			isa = PBXShellScriptBuildPhase;
@@ -487,6 +561,7 @@
 				A40FE474F0F0E13F8AD69BAD /* MenuMonitorLocalization.swift in Sources */,
 				7EBABAF38EB8FA2AA18E9010 /* MonitorView.swift in Sources */,
 				72A8881872843080A9F1B7DC /* PreferencesPersistenceController.swift in Sources */,
+				D11FA98B470B7D62000A0004 /* PrivilegedUninstallClient.swift in Sources */,
 				EF6D8A6DFE76273CF6D20AB2 /* ReportPDFExporter.swift in Sources */,
 				F6116CF03D05BD26A73A85F8 /* ReportSettingsViews.swift in Sources */,
 				98EE5E2C7EB6760CA3FE6244 /* RootView.swift in Sources */,
@@ -525,12 +600,22 @@
 				1663557B35CF072E802AFA5E /* InputDeviceReader.swift in Sources */,
 				C2E2AA9D27312B914D15094F /* LiveServices.swift in Sources */,
 				9C836ADD0E5E155E2F3B1460 /* NetworkServiceNaming.swift in Sources */,
+				D11FA98B470B7D62000A0002 /* PrivilegedUninstall.swift in Sources */,
 				CDB5E47D152BF6E72EC70E69 /* SMCSensorReader.swift in Sources */,
 				ED3D5C7B59FFE4A9BB840557 /* Safety.swift in Sources */,
 				D679CAF6FCD43128FD22EF52 /* ScanningServices.swift in Sources */,
 				AA9C9202E678CFD4CC621DAE /* SensorHelperBridge.swift in Sources */,
 				564E8A4EE15275D17CBB04A7 /* StorageIOReader.swift in Sources */,
 				E98BCA7680CAC1243D1DDE3A /* SystemModels.swift in Sources */,
+				5D9BFEAB27B649E08A1A2367 /* VendorUninstaller.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		D11FA98B470B7D62000A000F /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				D11FA98B470B7D62000A0006 /* PrivilegedUninstallMain.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -551,6 +636,16 @@
 			isa = PBXTargetDependency;
 			target = 40DC65E13E04E526EC80FF54 /* TraceHaloSensorHelper */;
 			targetProxy = 028D271CD5AF56744CA9BB94 /* PBXContainerItemProxy */;
+		};
+		D11FA98B470B7D62000A0012 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = D11FA98B470B7D62000A0011 /* TraceHaloUninstallHelper */;
+			targetProxy = D11FA98B470B7D62000A000C /* PBXContainerItemProxy */;
+		};
+		D11FA98B470B7D62000A0013 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 2BBCA66E3BB64165D3AFB263 /* TraceHaloCore */;
+			targetProxy = D11FA98B470B7D62000A000D /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
 
@@ -610,6 +705,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				CODE_SIGN_STYLE = Automatic;
+				DEVELOPMENT_TEAM = 4DXU5FSLLY;
 				PRODUCT_BUNDLE_IDENTIFIER = "com.tseai.tracehalo.sensor-helper";
 				PRODUCT_MODULE_NAME = TraceHaloSensorHelper;
 				PRODUCT_NAME = TraceHaloSensorHelper;
@@ -626,7 +722,7 @@
 				CODE_SIGN_ENTITLEMENTS = Xcode/TraceHalo/TraceHalo.entitlements;
 				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 3;
+				CURRENT_PROJECT_VERSION = 26;
 				DEVELOPMENT_TEAM = 4DXU5FSLLY;
 				ENABLE_APP_SANDBOX = NO;
 				ENABLE_HARDENED_RUNTIME = YES;
@@ -638,7 +734,7 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MARKETING_VERSION = 0.1.1;
+				MARKETING_VERSION = 0.2.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.tseai.tracehalo;
 				PRODUCT_MODULE_NAME = TraceHaloApp;
 				PRODUCT_NAME = TraceHalo;
@@ -654,7 +750,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_ENTITLEMENTS = Xcode/TraceHalo/TraceHalo.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 3;
+				CURRENT_PROJECT_VERSION = 26;
 				DEVELOPMENT_TEAM = 4DXU5FSLLY;
 				ENABLE_APP_SANDBOX = NO;
 				ENABLE_HARDENED_RUNTIME = YES;
@@ -666,7 +762,7 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MARKETING_VERSION = 0.1.1;
+				MARKETING_VERSION = 0.2.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.tseai.tracehalo;
 				PRODUCT_MODULE_NAME = TraceHaloApp;
 				PRODUCT_NAME = TraceHalo;
@@ -695,6 +791,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				CODE_SIGN_STYLE = Automatic;
+				DEVELOPMENT_TEAM = 4DXU5FSLLY;
 				PRODUCT_BUNDLE_IDENTIFIER = "com.tseai.tracehalo.sensor-helper";
 				PRODUCT_MODULE_NAME = TraceHaloSensorHelper;
 				PRODUCT_NAME = TraceHaloSensorHelper;
@@ -703,6 +800,36 @@
 				SWIFT_VERSION = 6.0;
 			};
 			name = Debug;
+		};
+		D11FA98B470B7D62000A0014 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				DEVELOPMENT_TEAM = 4DXU5FSLLY;
+				ENABLE_HARDENED_RUNTIME = YES;
+				PRODUCT_BUNDLE_IDENTIFIER = "com.tseai.tracehalo.uninstall-helper";
+				PRODUCT_MODULE_NAME = TraceHaloUninstallHelper;
+				PRODUCT_NAME = TraceHaloUninstallHelper;
+				SKIP_INSTALL = YES;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_VERSION = 6.0;
+			};
+			name = Debug;
+		};
+		D11FA98B470B7D62000A0015 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				DEVELOPMENT_TEAM = 4DXU5FSLLY;
+				ENABLE_HARDENED_RUNTIME = YES;
+				PRODUCT_BUNDLE_IDENTIFIER = "com.tseai.tracehalo.uninstall-helper";
+				PRODUCT_MODULE_NAME = TraceHaloUninstallHelper;
+				PRODUCT_NAME = TraceHaloUninstallHelper;
+				SKIP_INSTALL = YES;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				SWIFT_VERSION = 6.0;
+			};
+			name = Release;
 		};
 /* End XCBuildConfiguration section */
 
@@ -739,6 +866,15 @@
 			buildConfigurations = (
 				1E520BD21112385D98F5CD43 /* Debug */,
 				363B73DD2567D90BC1EB723D /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		D11FA98B470B7D62000A0016 /* Build configuration list for PBXNativeTarget "TraceHaloUninstallHelper" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				D11FA98B470B7D62000A0014 /* Debug */,
+				D11FA98B470B7D62000A0015 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;

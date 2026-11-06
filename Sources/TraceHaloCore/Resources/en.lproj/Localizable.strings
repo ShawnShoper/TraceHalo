@@ -96,6 +96,11 @@
 "uninstall.partialCompletion" = "Moved %ld of %ld items to the Trash, then stopped: %@. Items already moved can be restored from the Trash.";
 "uninstall.partialCompletion.one" = "Moved %ld of %ld item to the Trash, then stopped: %@. Items already moved can be restored from the Trash.";
 "uninstall.partialCompletion.other" = "Moved %ld of %ld items to the Trash, then stopped: %@. Items already moved can be restored from the Trash.";
+"uninstall.noItemsMoved" = "%@. No items were moved to the Trash.";
+"uninstall.appMoveUnconfirmed" = "Could not confirm whether “%@” moved to the Trash. Local data was kept. Check the Trash before retrying.";
+"uninstall.cleanupIncomplete" = "The app is in the Trash. Moved %ld of %ld selected data items. %@. Cleanup stopped.";
+"uninstall.movePermissionDenied" = "Moving “%@” to the Trash requires additional permission";
+"uninstall.moveError" = "Could not move “%@” to the Trash (%@)";
 "uninstall.targetChanged" = "The target changed after confirmation, so removal stopped: %@";
 "uninstall.unscannedAssociation" = "The uninstall plan contains an associated file that was not confirmed by the scan: %@";
 "uninstall.targetMissing" = "The target does not exist: %@";

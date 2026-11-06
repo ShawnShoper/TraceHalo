@@ -57,12 +57,47 @@ final class MonitorWorkspaceRenderingTests: XCTestCase {
         ]
 
         for size in sizes {
-            let image = try await renderRootMonitor(at: size)
+            for workspace in [MonitorWorkspace.live(.network), .menuBarLayout] {
+                let image = try await renderRootMonitor(at: size, workspace: workspace)
 
-            XCTAssertEqual(image.renderedSize.width, size.width, accuracy: 0.5)
-            XCTAssertEqual(image.renderedSize.height, size.height, accuracy: 0.5)
-            XCTAssertFalse(image.bitmap.isEmpty, "\(Int(size.width))×\(Int(size.height)) 未生成内存位图")
+                XCTAssertEqual(image.renderedSize.width, size.width, accuracy: 0.5)
+                XCTAssertEqual(image.renderedSize.height, size.height, accuracy: 0.5)
+                XCTAssertFalse(image.bitmap.isEmpty, "\(Int(size.width))×\(Int(size.height)) 未生成内存位图")
+            }
         }
+    }
+
+    @MainActor
+    func testMonitorNavigationKeepsLiveResourcesAndLayoutSeparate() {
+        let router = AppNavigationRouter()
+        router.openMonitor(.live(.memory))
+        XCTAssertEqual(router.destination, .dashboard)
+        XCTAssertEqual(router.dashboardSectionRequest?.section, .memory)
+        let firstRequest = router.dashboardSectionRequest
+
+        router.openMonitor(.live(.memory))
+        XCTAssertEqual(router.dashboardSectionRequest?.section, .memory)
+        XCTAssertNotEqual(router.dashboardSectionRequest, firstRequest)
+
+        router.openMonitor(.menuBarLayout)
+        XCTAssertEqual(router.destination, .monitor)
+        XCTAssertNil(router.dashboardSectionRequest)
+
+        router.navigate(to: .dashboard)
+        XCTAssertEqual(router.destination, .dashboard)
+        XCTAssertNil(router.dashboardSectionRequest)
+    }
+
+    @MainActor
+    func testLegacyMonitorDestinationOpensLiveHome() {
+        let router = AppNavigationRouter(destination: .monitor)
+        XCTAssertEqual(router.destination, .dashboard)
+        XCTAssertNil(router.dashboardSectionRequest)
+
+        router.openMonitor(.menuBarLayout)
+        router.navigate(to: .monitor)
+        XCTAssertEqual(router.destination, .dashboard)
+        XCTAssertNil(router.dashboardSectionRequest)
     }
 
     private func assertSupportedColumnsFit(
@@ -95,15 +130,19 @@ final class MonitorWorkspaceRenderingTests: XCTestCase {
     }
 
     @MainActor
-    private func renderRootMonitor(at size: CGSize) async throws -> (renderedSize: CGSize, bitmap: Data) {
+    private func renderRootMonitor(
+        at size: CGSize,
+        workspace: MonitorWorkspace
+    ) async throws -> (renderedSize: CGSize, bitmap: Data) {
         let model = AppModel()
         model.monitorConfiguration = .standard
-        let router = AppNavigationRouter(destination: .monitor)
+        let router = AppNavigationRouter()
+        router.openMonitor(workspace)
         let hostingView = NSHostingView(
             rootView: RootView()
                 .environment(model)
                 .environment(router)
-                .preferredColorScheme(.dark)
+                .preferredColorScheme(.light)
                 .frame(width: size.width, height: size.height)
         )
         let frame = NSRect(origin: .zero, size: size)

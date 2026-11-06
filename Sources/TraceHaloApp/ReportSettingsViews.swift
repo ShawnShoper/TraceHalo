@@ -75,26 +75,32 @@ struct ReportView: View {
     @State private var exportSucceeded = false
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 20) {
-                PageHeader(
-                    title: localized("系统报告"),
-                    subtitle: localized("生成适合排障和归档的只读硬件状态摘要"),
-                    symbol: "doc.text.magnifyingglass",
-                    trailing: AnyView(generateButton)
-                )
+        ScrollViewReader { scrollProxy in
+            ScrollView(.vertical) {
+                VStack(alignment: .leading, spacing: 20) {
+                    PageHeader(
+                        title: localized("系统报告"),
+                        subtitle: localized("生成适合排障和归档的只读硬件状态摘要"),
+                        symbol: "doc.text.magnifyingglass",
+                        trailing: AnyView(generateButton)
+                    )
 
-                privacyCard
+                    privacyCard
 
-                HStack(alignment: .top, spacing: 16) {
-                    reportSummary
-                        .frame(width: 270)
-                    reportPreview
+                    HStack(alignment: .top, spacing: 16) {
+                        reportSummary
+                            .frame(width: 270)
+                        reportPreview
+                    }
                 }
+                .padding(24)
+                .frame(maxWidth: 1_220, alignment: .leading)
+                .frame(maxWidth: .infinity, alignment: .topLeading)
+                .id("report-top")
             }
-            .padding(24)
-            .frame(maxWidth: 1_220, alignment: .leading)
-            .frame(maxWidth: .infinity, alignment: .topLeading)
+            .onChange(of: generatedAt) { _, _ in
+                scrollProxy.scrollTo("report-top", anchor: .top)
+            }
         }
         .calmPage()
         .navigationTitle(localized("系统报告"))
@@ -213,19 +219,20 @@ struct ReportView: View {
                     .disabled(report.isEmpty)
             }
 
-            ScrollView([.vertical, .horizontal]) {
-                Text(report)
-                    .font(.system(.callout, design: .monospaced))
-                    .textSelection(.enabled)
-                    .frame(maxWidth: .infinity, alignment: .topLeading)
-                    .padding(16)
-            }
-            .frame(minHeight: 480)
-            .background(.primary.opacity(0.035), in: RoundedRectangle(cornerRadius: 11))
-            .overlay {
-                RoundedRectangle(cornerRadius: 11)
-                    .strokeBorder(.primary.opacity(0.07))
-            }
+            // Keep the report constrained to the pane. A horizontal ScrollView
+            // gives long lines unlimited width and can hide their beginnings.
+            Text(verbatim: report)
+                .font(.system(.callout, design: .monospaced))
+                .textSelection(.enabled)
+                .multilineTextAlignment(.leading)
+                .fixedSize(horizontal: false, vertical: true)
+                .frame(maxWidth: .infinity, alignment: .topLeading)
+                .padding(16)
+                .background(.primary.opacity(0.035), in: RoundedRectangle(cornerRadius: 11))
+                .overlay {
+                    RoundedRectangle(cornerRadius: 11)
+                        .strokeBorder(.primary.opacity(0.07))
+                }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .calmCard()
@@ -707,15 +714,14 @@ struct SettingsView: View {
                     title: localized("settings.launchDestination.title"),
                     value: launchDestinationTitle,
                     minimumHeight: 34,
-                    selection: $launchDestination,
+                    selection: Binding(
+                        get: { launchDestination == "last" ? "last" : AppDestination.dashboard.rawValue },
+                        set: { launchDestination = $0 }
+                    ),
                     options: [
                         SettingsSelectionOption(
                             value: AppDestination.dashboard.rawValue,
-                            title: localized("系统概览")
-                        ),
-                        SettingsSelectionOption(
-                            value: AppDestination.monitor.rawValue,
-                            title: localized("监视器")
+                            title: localized("实时监控")
                         ),
                         SettingsSelectionOption(value: "last", title: localized("上次页面")),
                     ]
@@ -830,11 +836,7 @@ struct SettingsView: View {
     }
 
     private var launchDestinationTitle: String {
-        switch launchDestination {
-        case AppDestination.monitor.rawValue: localized("监视器")
-        case "last": localized("上次页面")
-        default: localized("系统概览")
-        }
+        launchDestination == "last" ? localized("上次页面") : localized("实时监控")
     }
 
     private func localized(_ key: String) -> String {
@@ -1465,8 +1467,8 @@ struct SettingsAboutBuildMetadata: Equatable {
     }
 
     static let snapshotFixture = SettingsAboutBuildMetadata(
-        version: "0.1.1",
-        build: "3",
+        version: "0.2.0",
+        build: "26",
         releaseChannel: "Beta"
     )
 

@@ -5,7 +5,6 @@ SCRIPT_DIR="${0:A:h}"
 PACKAGE_DIR="${SCRIPT_DIR:h}"
 APP_PATH="${TRACEHALO_APP_PATH:-${PACKAGE_DIR}/.build/TraceHalo.app}"
 ICON_SOURCE_PNG="${PACKAGE_DIR}/Resources/TraceHalo-AppIcon-Source.png"
-SENSOR_HELPER_PLIST_NAME="com.tseai.tracehalo.sensor-helper.plist"
 SIGNING_IDENTITY="${TRACEHALO_SIGNING_IDENTITY:--}"
 UNIVERSAL_BUILD="${TRACEHALO_UNIVERSAL:-0}"
 TARGET_ARCH="${TRACEHALO_TARGET_ARCH:-native}"
@@ -113,14 +112,8 @@ if [[ "${UNIVERSAL_BUILD}" == "1" ]]; then
         "${ARM64_BIN_PATH}/TraceHalo" \
         "${X86_64_BIN_PATH}/TraceHalo" \
         -output "${STAGED_APP_PATH}/Contents/MacOS/TraceHalo"
-    lipo -create \
-        "${ARM64_BIN_PATH}/TraceHaloSensorHelper" \
-        "${X86_64_BIN_PATH}/TraceHaloSensorHelper" \
-        -output "${STAGED_APP_PATH}/Contents/Resources/TraceHaloSensorHelper"
 else
     cp "${BIN_PATH}/TraceHalo" "${STAGED_APP_PATH}/Contents/MacOS/TraceHalo"
-    cp "${BIN_PATH}/TraceHaloSensorHelper" \
-        "${STAGED_APP_PATH}/Contents/Resources/TraceHaloSensorHelper"
 fi
 if [[ -d "${APP_RESOURCE_BUNDLE_PATH}" ]]; then
     ditto "${APP_RESOURCE_BUNDLE_PATH}" \
@@ -145,35 +138,39 @@ for localization in en zh-Hans; do
     ditto "${localization_source}" \
         "${STAGED_APP_PATH}/Contents/Resources/${localization}.lproj"
 done
-cp "${PACKAGE_DIR}/Resources/${SENSOR_HELPER_PLIST_NAME}" \
-    "${STAGED_APP_PATH}/Contents/Library/LaunchDaemons/${SENSOR_HELPER_PLIST_NAME}"
 cp "${PACKAGE_DIR}/Resources/Info.plist" "${STAGED_APP_PATH}/Contents/Info.plist"
-chmod 755 "${STAGED_APP_PATH}/Contents/Resources/TraceHaloSensorHelper"
-plutil -lint \
-    "${STAGED_APP_PATH}/Contents/Library/LaunchDaemons/${SENSOR_HELPER_PLIST_NAME}" \
-    >/dev/null
 
+SIGNING_ARGUMENTS=(--sign "${SIGNING_IDENTITY}")
 if [[ "${SIGNING_IDENTITY}" == "-" ]]; then
-    codesign --force \
-        --sign - \
-        --timestamp=none \
-        --identifier com.tseai.tracehalo.sensor-helper \
-        "${STAGED_APP_PATH}/Contents/Resources/TraceHaloSensorHelper"
-    codesign --force --sign - --timestamp=none "${STAGED_APP_PATH}"
+    SIGNING_ARGUMENTS+=(--timestamp=none)
 else
-    codesign --force \
-        --sign "${SIGNING_IDENTITY}" \
-        --options runtime \
-        --timestamp \
-        --identifier com.tseai.tracehalo.sensor-helper \
-        "${STAGED_APP_PATH}/Contents/Resources/TraceHaloSensorHelper"
-    codesign --force \
-        --sign "${SIGNING_IDENTITY}" \
-        --options runtime \
-        --timestamp \
-        "${STAGED_APP_PATH}"
+    SIGNING_ARGUMENTS+=(--options runtime --timestamp)
 fi
 
+embed_helper() {
+    local executable="$1"
+    local identifier="$2"
+    local helper_path="${STAGED_APP_PATH}/Contents/Resources/${executable}"
+    local plist_name="${identifier}.plist"
+    local daemon_plist="${STAGED_APP_PATH}/Contents/Library/LaunchDaemons/${plist_name}"
+
+    if [[ "${UNIVERSAL_BUILD}" == "1" ]]; then
+        lipo -create \
+            "${ARM64_BIN_PATH}/${executable}" \
+            "${X86_64_BIN_PATH}/${executable}" \
+            -output "${helper_path}"
+    else
+        cp "${BIN_PATH}/${executable}" "${helper_path}"
+    fi
+    cp "${PACKAGE_DIR}/Resources/${plist_name}" "${daemon_plist}"
+    chmod 755 "${helper_path}"
+    plutil -lint "${daemon_plist}" >/dev/null
+    codesign --force "${SIGNING_ARGUMENTS[@]}" --identifier "${identifier}" "${helper_path}"
+}
+
+embed_helper TraceHaloSensorHelper com.tseai.tracehalo.sensor-helper
+embed_helper TraceHaloUninstallHelper com.tseai.tracehalo.uninstall-helper
+codesign --force "${SIGNING_ARGUMENTS[@]}" "${STAGED_APP_PATH}"
 codesign --verify --deep --strict --verbose=2 "${STAGED_APP_PATH}"
 
 # The app bundle is assembled in a unique staging directory so a rebuild can

@@ -2,12 +2,13 @@ import AppKit
 import SwiftUI
 import TraceHaloCore
 
-private enum DashboardPalette {
-    static let canvas = Color(lightHex: "F3F5F6", darkHex: "20282D")
-    static let rail = Color(lightHex: "EEF2F4", darkHex: "222A2F")
-    static let card = Color(lightHex: "FFFFFF", darkHex: "282F33")
-    static let raisedCard = Color(lightHex: "F6F8F9", darkHex: "2A3237")
-    static let historyRow = Color(lightHex: "F7F9FA", darkHex: "252D31")
+private enum DashboardHistoryLayout {
+    static let labelWidth: CGFloat = 76
+    static let valueWidth: CGFloat = 74
+    static let rowInset: CGFloat = 9
+    static let rowSpacing: CGFloat = 10
+    static let plotLeading = labelWidth + rowInset + rowSpacing
+    static let plotTrailing = valueWidth + rowInset + rowSpacing
 }
 
 struct DashboardView: View {
@@ -18,48 +19,52 @@ struct DashboardView: View {
     @State private var historyWindowMinutes = 60
     @State private var isShowingAllEvents = false
 
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var expandedResource: DashboardResource?
+    @State private var expandedSection: MenuBarDashboardSection = .cpu
+
     var body: some View {
         GeometryReader { proxy in
-            if proxy.size.width >= 960 {
-                HStack(spacing: 0) {
-                    primaryColumn
-                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-
-                    Rectangle()
-                        .fill(CalmTheme.hairline)
-                        .frame(width: 1)
-
-                    ScrollView {
-                        insightRail
-                            .padding(.horizontal, 19)
-                            .padding(.top, 20)
-                            .padding(.bottom, 20)
-                    }
-                    .scrollIndicators(.hidden)
-                    .frame(width: 308)
-                    .background(DashboardPalette.rail)
-                }
-            } else {
+            ScrollViewReader { scroll in
                 ScrollView {
-                    VStack(spacing: 0) {
-                        primaryColumn
-                        Rectangle()
-                            .fill(CalmTheme.hairline)
-                            .frame(height: 1)
-                        insightRail
-                            .padding(22)
+                    VStack(alignment: .leading, spacing: 20) {
+                        healthHeader
+                        healthStatus
+                        resourceGrid(availableWidth: min(proxy.size.width - 48, 1_432))
+
+                        if proxy.size.width >= 1_000 {
+                            HStack(alignment: .top, spacing: 16) {
+                                resourceHistory.frame(maxWidth: .infinity)
+                                insightRail.frame(width: 286)
+                            }
+                        } else {
+                            resourceHistory
+                            insightRail
+                        }
+                    }
+                    .padding(24)
+                    .frame(maxWidth: 1_480, alignment: .leading)
+                    .frame(maxWidth: .infinity)
+                }
+                .onChange(of: navigationRouter.dashboardSectionRequest, initial: true) { _, request in
+                    guard let request else { return }
+                    let resource = DashboardResource(section: request.section)
+                    guard resource != .battery || PowerPresentationPolicy.isAvailable(in: model.snapshot) else { return }
+                    expandedSection = request.section
+                    expandedResource = resource
+                    // The detail view is inserted before scrolling so a menu-bar
+                    // shortcut also works when the requested resource was closed.
+                    Task { @MainActor in
+                        await Task.yield()
+                        guard expandedResource == resource else { return }
+                        scroll.scrollTo(resource.id, anchor: .top)
                     }
                 }
             }
         }
         .foregroundStyle(CalmTheme.primaryText)
-        .background(DashboardPalette.canvas.ignoresSafeArea())
-        .navigationTitle("TraceHalo")
-        .onAppear {
-            if model.dataSource == .fixture, historyHoverLocation == nil {
-                historyHoverLocation = CGPoint(x: 450, y: 104)
-            }
-        }
+        .background(CalmTheme.canvas.ignoresSafeArea())
+        .navigationTitle(localized("实时监控"))
         .sheet(isPresented: $isShowingAllEvents) {
             DashboardEventListSheet(events: model.dashboardEvents)
         }
@@ -76,48 +81,52 @@ struct DashboardView: View {
                 Spacer(minLength: 20)
                 headerActions
             }
-
             VStack(alignment: .leading, spacing: 16) {
                 healthIdentity
                 headerActions
             }
         }
-        .padding(.horizontal, 34)
-        .frame(height: 92)
     }
 
     private var healthIdentity: some View {
-        HStack(spacing: 15) {
-            ZStack {
-                Circle()
-                    .fill(model.overallState.color.opacity(0.16))
-                Image(systemName: model.overallState.symbol)
-                    .font(.system(size: 26, weight: .semibold))
-                    .foregroundStyle(model.overallState.color)
-            }
-            .frame(width: 42, height: 42)
-            .accessibilityHidden(true)
-
-            VStack(alignment: .leading, spacing: 5) {
-                Text(healthTitle)
-                    .font(.system(size: 20, weight: .semibold))
-                Text("\(deviceDisplayName) · \(model.snapshot.identity.chipName)")
-                    .font(.system(size: 12.5))
-                    .foregroundStyle(CalmTheme.secondaryText)
-                    .lineLimit(1)
-            }
+        VStack(alignment: .leading, spacing: 6) {
+            Text(localized("实时监控"))
+                .font(.system(size: 27, weight: .semibold))
+                .accessibilityAddTraits(.isHeader)
+            Text("\(deviceDisplayName) · \(model.snapshot.identity.chipName)")
+                .font(.system(size: 12))
+                .foregroundStyle(CalmTheme.secondaryText)
+                .lineLimit(1)
         }
+    }
+
+    private var healthStatus: some View {
+        HStack(alignment: .center, spacing: 9) {
+            Image(systemName: model.overallState.symbol)
+                .foregroundStyle(model.overallState.color)
+            Text(healthTitle)
+                .font(.system(size: 12, weight: .medium))
+            if let healthStatusDetail {
+                Text(healthStatusDetail)
+                    .font(.system(size: 12))
+                    .foregroundStyle(CalmTheme.secondaryText)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            Spacer(minLength: 8)
+            Text(model.snapshot.capturedAt, style: .time)
+                .font(.system(size: 11).monospacedDigit())
+                .foregroundStyle(CalmTheme.tertiaryText)
+                .help(localized("最近更新"))
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 10)
+        .background(model.overallState.color.opacity(0.06), in: RoundedRectangle(cornerRadius: 9))
         .accessibilityElement(children: .combine)
-        .accessibilityLabel(
-            AppLocalization.format(
-                "dashboard.health.accessibility",
-                defaultValue: "%@，%@，%@",
-                locale: locale,
-                healthTitle,
-                deviceDisplayName,
-                model.snapshot.identity.chipName
-            )
-        )
+    }
+
+    private var healthStatusDetail: String? {
+        if model.overallState == .critical { return statusExplanation }
+        return model.lastError ?? (model.overallState == .normal ? nil : statusExplanation)
     }
 
     private var headerActions: some View {
@@ -125,161 +134,102 @@ struct DashboardView: View {
             Button {
                 navigationRouter.navigate(to: .report)
             } label: {
-                Label("展开诊断", systemImage: "waveform.path.ecg")
+                Label(localized("系统报告"), systemImage: "doc.text.magnifyingglass")
             }
-            .buttonStyle(CalmButtonStyle(prominent: true))
+            .buttonStyle(CalmButtonStyle())
             .help("打开系统报告")
 
             Button {
-                navigationRouter.navigate(to: .monitor)
+                navigationRouter.openMonitor(.menuBarLayout)
             } label: {
-                Label("菜单栏布局", systemImage: "menubar.rectangle")
+                Label(localized("菜单栏布局"), systemImage: "menubar.rectangle")
             }
             .buttonStyle(CalmButtonStyle())
             .help("打开菜单栏监视器布局")
         }
     }
 
-    private var primaryColumn: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            healthHeader
-            topologySection
-            resourceHistory
-                .frame(maxHeight: .infinity, alignment: .top)
+    private func resourceGrid(availableWidth: CGFloat) -> some View {
+        let columnCount = availableWidth >= 840 ? 3 : (availableWidth >= 520 ? 2 : 1)
+        let metrics: [DashboardResource] = [.cpu, .memory, .gpu, .storage, .network, .cooling]
+            + (PowerPresentationPolicy.isAvailable(in: model.snapshot) ? [.battery] : [])
+        let rows = stride(from: 0, to: metrics.count, by: columnCount).map {
+            Array(metrics[$0 ..< min($0 + columnCount, metrics.count)])
         }
-    }
-
-    private var topologySection: some View {
-        ViewThatFits(in: .horizontal) {
-            wideTopology
-                .frame(minWidth: 650)
-            compactTopology
-                .padding(.horizontal, 24)
-        }
-        .padding(.horizontal, 34)
-        .padding(.bottom, 10)
-    }
-
-    private var wideTopology: some View {
-        GeometryReader { proxy in
-            let cardWidth = min(240.0, max(220.0, (proxy.size.width - 228) / 2))
-            let leftX = cardWidth / 2
-            let rightX = proxy.size.width - cardWidth / 2
-            let centerX = proxy.size.width / 2
-            let rowY: [CGFloat] = [43, 144, 245]
-
-            ZStack {
-                TopologyConnectors(
-                    leftEdgeX: cardWidth,
-                    rightEdgeX: proxy.size.width - cardWidth,
-                    centerX: centerX,
-                    rowY: rowY,
-                    leftColors: [CalmTheme.accent, CalmTheme.violet, CalmTheme.cyan],
-                    rightColors: [CalmTheme.cyan, CalmTheme.mint, CalmTheme.amber]
-                )
-                .accessibilityHidden(true)
-
-                topologyCard(for: .cpu)
-                    .frame(width: cardWidth, height: 78)
-                    .position(x: leftX, y: rowY[0])
-                topologyCard(for: .memory)
-                    .frame(width: cardWidth, height: 78)
-                    .position(x: leftX, y: rowY[1])
-                topologyCard(for: .storage)
-                    .frame(width: cardWidth, height: 78)
-                    .position(x: leftX, y: rowY[2])
-
-                TopologyCenterNode(
-                    modelName: deviceDisplayName,
-                    modelIdentifier: model.snapshot.identity.modelIdentifier,
-                    chipName: model.snapshot.identity.chipName,
-                    stateColor: model.overallState.color
-                )
-                .position(x: centerX, y: rowY[1])
-
-                topologyCard(for: .gpu)
-                    .frame(width: cardWidth, height: 78)
-                    .position(x: rightX, y: rowY[0])
-                topologyCard(for: .cooling)
-                    .frame(width: cardWidth, height: 78)
-                    .position(x: rightX, y: rowY[1])
-                topologyCard(for: .network)
-                    .frame(width: cardWidth, height: 78)
-                    .position(x: rightX, y: rowY[2])
-            }
-        }
-        .frame(height: 312)
-    }
-
-    private var compactTopology: some View {
-        VStack(spacing: 16) {
-            TopologyCenterNode(
-                modelName: deviceDisplayName,
-                modelIdentifier: model.snapshot.identity.modelIdentifier,
-                chipName: model.snapshot.identity.chipName,
-                stateColor: model.overallState.color
-            )
-
-            ZStack {
-                Rectangle()
-                    .fill(.primary.opacity(0.09))
-                    .frame(width: 1)
-                    .padding(.vertical, 8)
-                    .accessibilityHidden(true)
-
-                LazyVGrid(columns: [GridItem(.adaptive(minimum: 196), spacing: 12)], spacing: 12) {
-                    ForEach(TopologyMetric.allCases) { metric in
-                        topologyCard(for: metric)
-                            .frame(minHeight: 104)
+        return VStack(spacing: 14) {
+            ForEach(rows.indices, id: \.self) { row in
+                HStack(alignment: .top, spacing: 14) {
+                    ForEach(rows[row]) { metric in
+                        resourceCard(for: metric).id(metric.id)
                     }
+                    ForEach(rows[row].count ..< columnCount, id: \.self) { _ in
+                        Color.clear.frame(maxWidth: .infinity)
+                    }
+                }
+                if let expandedResource, rows[row].contains(expandedResource) {
+                    resourceDetails(for: expandedResource)
                 }
             }
         }
     }
 
-    @ViewBuilder
-    private func topologyCard(for metric: TopologyMetric) -> some View {
-        let content = topologyContent(for: metric)
-        Button {
-            navigationRouter.navigate(to: topologyDestination(for: metric))
-        } label: {
-            if metric == .network {
-                NetworkTopologyMetricCard(
-                    received: aggregateRate(networkReceivedRates),
-                    sent: aggregateRate(networkSentRates),
-                    detail: activeInterfaceSummary,
-                    points: content.points
-                )
-            } else {
-                TopologyMetricCard(
-                    title: content.title,
-                    value: content.value,
-                    detail: content.detail,
-                    symbol: content.symbol,
-                    tint: content.tint,
-                    points: content.points
-                )
+    private func resourceCard(for metric: DashboardResource) -> some View {
+        let content = resourceContent(for: metric)
+        return Button {
+            withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.18)) {
+                if expandedResource == metric {
+                    expandedResource = nil
+                } else {
+                    expandedResource = metric
+                    expandedSection = metric.section
+                }
             }
+        } label: {
+            DashboardResourceCard(
+                content: content,
+                detailTitle: localized(metric.detailTitle),
+                isExpanded: expandedResource == metric,
+                storageFraction: metric == .storage ? primaryVolume?.usedFraction
+                    : (metric == .battery ? model.snapshot.battery.chargePercent.map { $0 / 100 } : nil),
+                isBattery: metric == .battery,
+                chartMaximum: metric == .network ? nil : 100
+            )
         }
         .buttonStyle(.plain)
-        .contentShape(RoundedRectangle(cornerRadius: 15, style: .continuous))
-        .accessibilityHint(openDestinationLabel(for: metric))
-        .help(openDestinationLabel(for: metric))
+        .accessibilityLabel(localized(content.title))
+        .accessibilityValue("\(content.value)，\(content.detail)")
+        .accessibilityHint(localized(expandedResource == metric ? "收起详情" : metric.detailTitle))
+        .help(localized(expandedResource == metric ? "收起详情" : metric.detailTitle))
     }
 
-    private func topologyDestination(for metric: TopologyMetric) -> AppDestination {
-        switch metric {
-        case .cpu, .memory, .network: .monitor
-        case .gpu: .graphics
-        case .cooling: .cooling
-        case .storage: .storage
+    private func resourceDetails(for metric: DashboardResource) -> some View {
+        VStack(alignment: .leading, spacing: 16) {
+            HStack {
+                Label(localized(metric.detailTitle), systemImage: resourceContent(for: metric).symbol)
+                    .font(.system(size: 14, weight: .semibold))
+                Spacer()
+                Button {
+                    withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.18)) {
+                        expandedResource = nil
+                    }
+                } label: {
+                    Label(localized("收起"), systemImage: "chevron.up")
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(CalmTheme.accent)
+                .help(localized("收起详情"))
+            }
+            MonitorResourceDetails(section: expandedSection)
         }
+        .padding(18)
+        .dashboardPanel()
+        .transition(.opacity)
     }
 
-    private func topologyContent(for metric: TopologyMetric) -> TopologyCardContent {
+    private func resourceContent(for metric: DashboardResource) -> DashboardResourceContent {
         switch metric {
         case .cpu:
-            TopologyCardContent(
+            DashboardResourceContent(
                 title: "CPU",
                 value: MetricFormatter.percent(model.snapshot.cpu.totalPercent),
                 detail: AppLocalization.format(
@@ -294,7 +244,7 @@ struct DashboardView: View {
                 points: model.history(for: .cpuTotal)
             )
         case .gpu:
-            TopologyCardContent(
+            DashboardResourceContent(
                 title: "GPU",
                 value: model.snapshot.gpus.first?.utilizationPercent.map { MetricFormatter.percent($0) } ?? "—",
                 detail: gpuDetail,
@@ -303,7 +253,7 @@ struct DashboardView: View {
                 points: model.history(for: .gpuUsage)
             )
         case .memory:
-            TopologyCardContent(
+            DashboardResourceContent(
                 title: "内存",
                 value: MetricFormatter.percent(model.snapshot.memory.pressurePercent),
                 detail: AppLocalization.format(
@@ -318,7 +268,7 @@ struct DashboardView: View {
                 points: model.history(for: .memoryPressure)
             )
         case .cooling:
-            TopologyCardContent(
+            DashboardResourceContent(
                 title: "散热",
                 value: temperatureValue,
                 detail: coolingDetail,
@@ -327,30 +277,47 @@ struct DashboardView: View {
                 points: model.history(for: .temperature)
             )
         case .storage:
-            TopologyCardContent(
+            DashboardResourceContent(
                 title: "存储",
-                value: primaryVolume.map { MetricFormatter.percent($0.usedFraction * 100) } ?? "—",
+                value: primaryVolume.map { MetricFormatter.bytes($0.availableBytes) } ?? "—",
                 detail: primaryVolume.map {
                     AppLocalization.format(
-                        "dashboard.storage.available",
-                        defaultValue: "可用 %@",
+                        "dashboard.storage.summary",
+                        defaultValue: "可用空间 · 已用 %@",
                         locale: locale,
-                        MetricFormatter.bytes($0.availableBytes)
+                        MetricFormatter.percent($0.usedFraction * 100)
                     )
                 } ?? localized("没有已挂载卷"),
                 symbol: "internaldrive",
                 tint: CalmTheme.cyan,
                 points: timelineSamples.compactMap(\.storageUsedPercent)
             )
+        case .battery:
+            DashboardResourceContent(
+                title: "电池与电源",
+                value: model.snapshot.battery.chargePercent.map { MetricFormatter.percent($0) } ?? "—",
+                detail: batteryPowerDescription,
+                symbol: "battery.100", tint: CalmTheme.mint, points: []
+            )
         case .network:
-            TopologyCardContent(
+            DashboardResourceContent(
                 title: "网络",
-                value: aggregateRate(networkReceivedRates),
+                value: "↓ \(aggregateRate(networkReceivedRates))",
                 detail: "↑ \(aggregateRate(networkSentRates)) · \(activeInterfaceSummary)",
                 symbol: "globe",
                 tint: CalmTheme.amber,
-                points: model.history(for: .networkReceived)
+                points: timelineSamples.compactMap(\.networkReceivedBytesPerSecond)
             )
+        }
+    }
+
+    private var batteryPowerDescription: String {
+        let battery = model.snapshot.battery
+        if battery.isCharging { return localized("正在充电") }
+        switch battery.isOnExternalPower {
+        case true?: return localized("已连接电源")
+        case false?: return localized("使用电池")
+        case nil: return localized("电源状态不可用")
         }
     }
 
@@ -360,27 +327,10 @@ struct DashboardView: View {
 
         return VStack(alignment: .leading, spacing: 10) {
             HStack(spacing: 12) {
-                Menu {
-                    ForEach([15, 30, 60], id: \.self) { minutes in
-                        Button(minutesLabel(minutes)) {
-                            historyWindowMinutes = minutes
-                        }
-                    }
-                } label: {
-                    HStack(spacing: 5) {
-                        Text(historyTitle)
-                            .font(.system(size: 12, weight: .semibold))
-                        Image(systemName: "chevron.down")
-                            .font(.system(size: 8, weight: .bold))
-                    }
-                    .foregroundStyle(CalmTheme.primaryText)
-                }
-                .menuStyle(.borderlessButton)
-                .fixedSize()
-
-                Spacer(minLength: 6)
-                historyLegend
-                Spacer(minLength: 6)
+                Text(localized("资源历史"))
+                    .font(.headline)
+                    .accessibilityAddTraits(.isHeader)
+                Spacer(minLength: 8)
 
                 Menu {
                     ForEach([15, 30, 60], id: \.self) { minutes in
@@ -407,21 +357,7 @@ struct DashboardView: View {
                 .menuStyle(.borderlessButton)
                 .fixedSize()
 
-                Button {
-                    navigationRouter.navigate(to: .monitor)
-                } label: {
-                    Image(systemName: "magnifyingglass")
-                        .font(.system(size: 10, weight: .semibold))
-                        .frame(width: 25, height: 25)
-                        .background(CalmTheme.controlBackground, in: RoundedRectangle(cornerRadius: 7, style: .continuous))
-                        .overlay {
-                            RoundedRectangle(cornerRadius: 7, style: .continuous)
-                                .strokeBorder(CalmTheme.hairline)
-                        }
-                }
-                .buttonStyle(.plain)
-                .help("打开实时监控")
-                .accessibilityLabel("打开实时监控")
+
             }
 
             GeometryReader { proxy in
@@ -438,13 +374,11 @@ struct DashboardView: View {
                             title: "GPU",
                             color: CalmTheme.cyan,
                             value: model.snapshot.gpus.first?.utilizationPercent.map { MetricFormatter.percent($0) } ?? "—",
-                            values: plottedSamples.compactMap { sample in
-                                sample.gpuPercent.map { TimelinePoint(date: sample.date, value: $0) }
-                            },
+                            values: plottedSamples.map { TimelinePoint(date: $0.date, value: $0.gpuPercent) },
                             domain: 0 ... 100
                         )
                         historyRow(
-                            title: "内存",
+                            title: "内存占用",
                             color: CalmTheme.violet,
                             value: MetricFormatter.percent(model.snapshot.memory.pressurePercent),
                             values: plottedSamples.map {
@@ -456,9 +390,7 @@ struct DashboardView: View {
                             title: "存储",
                             color: CalmTheme.cyan,
                             value: primaryVolume.map { MetricFormatter.percent($0.usedFraction * 100) } ?? "—",
-                            values: plottedSamples.compactMap { sample in
-                                sample.storageUsedPercent.map { TimelinePoint(date: sample.date, value: $0) }
-                            },
+                            values: plottedSamples.map { TimelinePoint(date: $0.date, value: $0.storageUsedPercent) },
                             domain: 0 ... 100
                         )
                         historyRow(
@@ -474,9 +406,7 @@ struct DashboardView: View {
                             title: "温度",
                             color: CalmTheme.mint,
                             value: temperatureValue,
-                            values: plottedSamples.compactMap { sample in
-                                sample.temperatureCelsius.map { TimelinePoint(date: sample.date, value: $0) }
-                            },
+                            values: plottedSamples.map { TimelinePoint(date: $0.date, value: $0.temperatureCelsius) },
                             domain: 0 ... 100
                         )
                     }
@@ -499,9 +429,7 @@ struct DashboardView: View {
                             historyHoverLocation = snappedLocation
                         }
                     case .ended:
-                        historyHoverLocation = model.dataSource == .fixture
-                            ? CGPoint(x: proxy.size.width * 0.62, y: proxy.size.height / 2)
-                            : nil
+                        historyHoverLocation = nil
                     }
                 }
             }
@@ -509,36 +437,8 @@ struct DashboardView: View {
 
             historyAxis
         }
-        .padding(.horizontal, 18)
-        .padding(.top, 15)
-        .padding(.bottom, 12)
-        .overlay(alignment: .top) {
-            Rectangle()
-                .fill(CalmTheme.hairline)
-                .frame(height: 1)
-        }
-    }
-
-    private var historyLegend: some View {
-        HStack(spacing: 10) {
-            legendItem("CPU", color: CalmTheme.accent)
-            legendItem("GPU", color: CalmTheme.cyan)
-            legendItem("内存", color: CalmTheme.violet)
-            legendItem("存储", color: CalmTheme.cyan)
-            legendItem("网络", color: CalmTheme.amber)
-            legendItem("温度", color: CalmTheme.mint)
-        }
-    }
-
-    private func legendItem(_ title: String, color: Color) -> some View {
-        HStack(spacing: 4) {
-            Circle()
-                .fill(color)
-                .frame(width: 6, height: 6)
-            Text(localized(title))
-                .font(.system(size: 9.5))
-                .foregroundStyle(CalmTheme.secondaryText)
-        }
+        .padding(16)
+        .dashboardPanel()
     }
 
     private var historyAxis: some View {
@@ -551,18 +451,18 @@ struct DashboardView: View {
             Spacer()
             Text(minutesAgoLabel(historyWindowMinutes / 4))
             Spacer()
-            Text("刚刚")
+            Text(localized("刚刚"))
         }
         .font(.system(size: 9, design: .monospaced))
         .foregroundStyle(CalmTheme.tertiaryText)
-        .padding(.leading, 58)
-        .padding(.trailing, 63)
+        .padding(.leading, DashboardHistoryLayout.plotLeading)
+        .padding(.trailing, DashboardHistoryLayout.plotTrailing)
     }
 
     private var visibleTimelineSamples: [DashboardTelemetrySample] {
-        guard let latest = timelineSamples.last?.date else { return [] }
+        let latest = model.snapshot.capturedAt
         let cutoff = latest.addingTimeInterval(-TimeInterval(historyWindowMinutes * 60))
-        return timelineSamples.filter { $0.date >= cutoff }
+        return timelineSamples.filter { $0.date >= cutoff && $0.date <= latest }
     }
 
     private func downsampledTimelineSamples(
@@ -583,9 +483,10 @@ struct DashboardView: View {
         width: CGFloat,
         samples: [DashboardTelemetrySample]
     ) -> DashboardTelemetrySample? {
-        guard let latest = samples.last?.date, !samples.isEmpty else { return nil }
-        let plotStart: CGFloat = 58
-        let plotEnd = max(width - 68, plotStart + 1)
+        guard !samples.isEmpty else { return nil }
+        let latest = model.snapshot.capturedAt
+        let plotStart = DashboardHistoryLayout.plotLeading
+        let plotEnd = max(width - DashboardHistoryLayout.plotTrailing, plotStart + 1)
         let clampedX = min(max(x, plotStart), plotEnd)
         let fraction = Double((clampedX - plotStart) / (plotEnd - plotStart))
         let target = latest.addingTimeInterval(
@@ -602,13 +503,19 @@ struct DashboardView: View {
                 upperBound = middle
             }
         }
-        if lowerBound == 0 { return samples[0] }
-        if lowerBound == samples.count { return samples[samples.count - 1] }
-        let previous = samples[lowerBound - 1]
-        let next = samples[lowerBound]
-        return abs(previous.date.timeIntervalSince(target)) <= abs(next.date.timeIntervalSince(target))
-            ? previous
-            : next
+        let nearest: DashboardTelemetrySample
+        if lowerBound == 0 {
+            nearest = samples[0]
+        } else if lowerBound == samples.count {
+            nearest = samples[samples.count - 1]
+        } else {
+            let previous = samples[lowerBound - 1]
+            let next = samples[lowerBound]
+            nearest = abs(previous.date.timeIntervalSince(target)) <= abs(next.date.timeIntervalSince(target))
+                ? previous : next
+        }
+        // Do not present an old sample as if it occurred under a blank part of the chart.
+        return abs(nearest.date.timeIntervalSince(target)) <= DashboardHistoryStore.persistenceSampleInterval ? nearest : nil
     }
 
     private func historySelectionOverlay(
@@ -616,20 +523,20 @@ struct DashboardView: View {
         x: CGFloat,
         size: CGSize
     ) -> some View {
-        let plotStart: CGFloat = 58
-        let plotEnd = max(size.width - 68, plotStart + 1)
+        let plotStart = DashboardHistoryLayout.plotLeading
+        let plotEnd = max(size.width - DashboardHistoryLayout.plotTrailing, plotStart + 1)
         let clampedX = min(max(x, plotStart), plotEnd)
         let tooltipWidth: CGFloat = 148
         let tooltipX = min(max(clampedX + 12, tooltipWidth / 2), size.width - tooltipWidth / 2)
 
         return ZStack(alignment: .topLeading) {
             Rectangle()
-                .fill(Color.white.opacity(0.72))
+                .fill(CalmTheme.secondaryText.opacity(0.5))
                 .frame(width: 1, height: size.height + 14)
                 .position(x: clampedX, y: size.height / 2)
 
             Circle()
-                .fill(Color.white)
+                .fill(CalmTheme.accent)
                 .frame(width: 8, height: 8)
                 .overlay(Circle().stroke(CalmTheme.canvas, lineWidth: 1.5))
                 .position(x: clampedX, y: size.height + 3)
@@ -637,7 +544,7 @@ struct DashboardView: View {
             DashboardHistoryTooltip(
                 sample: sample,
                 temperatureUnit: model.temperatureUnit,
-                latestDate: timelineSamples.last?.date ?? sample.date
+                latestDate: model.snapshot.capturedAt
             )
             .frame(width: tooltipWidth)
             .position(x: tooltipX, y: 92)
@@ -653,17 +560,19 @@ struct DashboardView: View {
         values: [TimelinePoint],
         domain: ClosedRange<Double>?
     ) -> some View {
-        HStack(spacing: 10) {
+        HStack(spacing: DashboardHistoryLayout.rowSpacing) {
             Text(localized(title))
                 .font(.caption.weight(.semibold))
-                .foregroundStyle(color)
-                .frame(width: 48, alignment: .leading)
+                .foregroundStyle(CalmTheme.primaryText)
+                .lineLimit(2)
+                .frame(width: DashboardHistoryLayout.labelWidth, alignment: .leading)
 
             TimelineTrace(
                 values: values,
                 color: color,
                 domain: domain,
-                windowSeconds: TimeInterval(historyWindowMinutes * 60)
+                windowSeconds: TimeInterval(historyWindowMinutes * 60),
+                latestDate: model.snapshot.capturedAt
             )
             .equatable()
             .frame(height: 22)
@@ -673,14 +582,15 @@ struct DashboardView: View {
                 .multilineTextAlignment(.trailing)
                 .lineLimit(2)
                 .minimumScaleFactor(0.72)
-                .frame(width: 68, alignment: .trailing)
+                .frame(width: DashboardHistoryLayout.valueWidth, alignment: .trailing)
         }
-        .padding(.horizontal, 9)
+        .padding(.horizontal, DashboardHistoryLayout.rowInset)
         .frame(height: 28)
-        .background(DashboardPalette.historyRow, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
-        .overlay {
-            RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .strokeBorder(.primary.opacity(0.055))
+        .overlay(alignment: .bottom) {
+            Rectangle()
+                .fill(CalmTheme.hairline.opacity(0.45))
+                .frame(height: 1)
+                .accessibilityHidden(true)
         }
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(
@@ -696,40 +606,11 @@ struct DashboardView: View {
     }
 
     private var insightRail: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text("此刻与变化")
-                .font(.system(size: 14, weight: .semibold))
-
-            currentStatusCard
+        VStack(alignment: .leading, spacing: 12) {
             memoryChangeCard
-            fanCard
-            temperatureCard
             eventLogCard
-        }
-    }
 
-    private var currentStatusCard: some View {
-        HStack(alignment: .center, spacing: 10) {
-            Image(systemName: model.overallState.symbol)
-                .font(.system(size: 18, weight: .semibold))
-                .foregroundStyle(model.overallState.color)
-                .frame(width: 34, height: 34)
-                .background(model.overallState.color.opacity(0.12), in: Circle())
-
-            VStack(alignment: .leading, spacing: 4) {
-                Text(statusRailTitle)
-                    .font(.system(size: 12.5, weight: .semibold))
-                    .foregroundStyle(model.overallState.color)
-                Text(model.lastError ?? statusExplanation)
-                    .font(.system(size: 9.5))
-                    .foregroundStyle(CalmTheme.secondaryText)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(12)
-        .dashboardPanel(cornerRadius: 10)
-        .accessibilityElement(children: .combine)
     }
 
     private var memoryChangeCard: some View {
@@ -752,87 +633,14 @@ struct DashboardView: View {
         .accessibilityElement(children: .combine)
     }
 
-    private var fanCard: some View {
-        VStack(alignment: .leading, spacing: 9) {
-            Label("风扇转速", systemImage: "fan")
-                .font(.system(size: 12, weight: .semibold))
-
-            if model.snapshot.cooling.fans.isEmpty {
-                Text(
-                    localized(
-                        model.snapshot.cooling.sensorAvailability.message
-                            ?? "未读取到风扇转速"
-                    )
-                )
-                    .font(.system(size: 12))
-                    .foregroundStyle(CalmTheme.secondaryText)
-                    .fixedSize(horizontal: false, vertical: true)
-            } else {
-                ForEach(model.snapshot.cooling.fans.prefix(4)) { fan in
-                    VStack(spacing: 5) {
-                        HStack {
-                            Text(fan.name)
-                                .lineLimit(1)
-                            Spacer()
-                            Text(
-                                "\(fan.currentRPM.formatted(.number.locale(locale))) RPM"
-                            )
-                                .font(.caption.monospacedDigit().weight(.semibold))
-                        }
-                        .font(.system(size: 10))
-                        DashboardProgressBar(
-                            value: fanProgress(fan),
-                            tint: CalmTheme.cyan,
-                            accessibilityLabel: AppLocalization.format(
-                                "dashboard.fan.accessibility",
-                                defaultValue: "%@ 转速",
-                                locale: locale,
-                                fan.name
-                            ),
-                            accessibilityValue: "\(fan.currentRPM) RPM"
-                        )
-                    }
-                }
-            }
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(12)
-        .dashboardPanel(cornerRadius: 10)
-    }
-
-    private var temperatureCard: some View {
-        VStack(alignment: .leading, spacing: 9) {
-            Label("温度概览", systemImage: "thermometer.medium")
-                .font(.system(size: 12, weight: .semibold))
-            HStack {
-                Text("CPU 平均")
-                    .font(.system(size: 10))
-                    .foregroundStyle(CalmTheme.secondaryText)
-                Spacer()
-                Text(temperatureValue)
-                    .font(.system(size: 11, weight: .semibold, design: .monospaced))
-            }
-            DashboardProgressBar(
-                value: temperatureProgress,
-                tint: temperatureColor,
-                accessibilityLabel: localized("CPU 平均温度"),
-                accessibilityValue: temperatureValue
-            )
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(12)
-        .dashboardPanel(cornerRadius: 10)
-        .accessibilityElement(children: .combine)
-    }
-
     private var eventLogCard: some View {
         VStack(alignment: .leading, spacing: 0) {
-            Text("事件记录")
+            Text(localized("事件记录"))
                 .font(.system(size: 12, weight: .semibold))
                 .padding(.bottom, 7)
 
             if model.dashboardEvents.isEmpty {
-                Text("暂无新的状态变化")
+                Text(localized("暂无新的状态变化"))
                     .font(.system(size: 10))
                     .foregroundStyle(CalmTheme.secondaryText)
                     .frame(maxWidth: .infinity, minHeight: 92, alignment: .center)
@@ -851,7 +659,7 @@ struct DashboardView: View {
             Button {
                 isShowingAllEvents = true
             } label: {
-                Text("查看全部事件")
+                Text(localized("查看全部事件"))
                     .font(.system(size: 10, weight: .medium))
                     .frame(maxWidth: .infinity)
                     .frame(height: 28)
@@ -883,20 +691,6 @@ struct DashboardView: View {
         }
     }
 
-    private var statusRailTitle: String {
-        localized(rawStatusRailTitle)
-    }
-
-    private var rawStatusRailTitle: String {
-        switch model.overallState {
-        case .normal: "暂无异常"
-        case .attention: "需要关注"
-        case .critical: "需要处理"
-        case .limited: "部分数据受限"
-        case .monitoring: "正在监测"
-        }
-    }
-
     private var statusExplanation: String {
         localized(rawStatusExplanation)
     }
@@ -916,11 +710,11 @@ struct DashboardView: View {
     }
 
     private var networkReceivedRates: [Double] {
-        relevantNetworkInterfaces.compactMap(\.receivedBytesPerSecond)
+        DashboardNetworkReading(interfaces: model.snapshot.networkInterfaces).receivedBytesPerSecond.map { [$0] } ?? []
     }
 
     private var networkSentRates: [Double] {
-        relevantNetworkInterfaces.compactMap(\.sentBytesPerSecond)
+        DashboardNetworkReading(interfaces: model.snapshot.networkInterfaces).sentBytesPerSecond.map { [$0] } ?? []
     }
 
     private var activeInterfaceSummary: String {
@@ -929,14 +723,7 @@ struct DashboardView: View {
     }
 
     private var relevantNetworkInterfaces: [NetworkInterfaceState] {
-        model.snapshot.networkInterfaces.filter { interface in
-            let name = interface.name.lowercased()
-            let excludedPrefixes = [
-                "lo", "utun", "awdl", "llw", "bridge", "gif", "stf", "anpi", "ap", "pktap"
-            ]
-            return !excludedPrefixes.contains(where: name.hasPrefix)
-                && (name.hasPrefix("en") || interface.isActive)
-        }
+        DashboardNetworkReading(interfaces: model.snapshot.networkInterfaces).activeInterfaces
     }
 
     private var deviceDisplayName: String {
@@ -967,19 +754,15 @@ struct DashboardView: View {
         } ?? "—"
     }
 
-    private var temperatureProgress: Double {
-        min(max((measuredTemperature ?? 0) / 100, 0), 1)
-    }
-
-    private var temperatureColor: Color {
-        guard let value = measuredTemperature else { return .secondary }
-        if value >= 85 { return CalmTheme.rose }
-        if value >= 70 { return CalmTheme.amber }
-        return CalmTheme.mint
-    }
-
     private var coolingDetail: String {
-        let condition = thermalConditionTitle(model.snapshot.cooling.condition)
+        let condition: String
+        switch model.snapshot.cooling.condition {
+        case .nominal: condition = localized("正常")
+        case .fair: condition = localized("温度升高")
+        case .serious: condition = localized("温度较高")
+        case .critical: condition = localized("需要关注")
+        case .unavailable: condition = localized("未知")
+        }
         guard !model.snapshot.cooling.fans.isEmpty else {
             return AppLocalization.format(
                 "dashboard.fan.unavailable",
@@ -1002,12 +785,7 @@ struct DashboardView: View {
     }
 
     private var gpuDetail: String {
-        guard let GPU = model.snapshot.gpus.first else { return localized("没有图形设备数据") }
-        let temperature = GPU.temperatureCelsius.map {
-            model.temperatureUnit.formatted(celsius: $0, locale: locale)
-        }
-            ?? localized("温度不可用")
-        return "\(GPU.name) · \(temperature)"
+        model.snapshot.gpus.first?.name ?? localized("没有图形设备数据")
     }
 
     private func aggregateRate(_ rates: [Double]) -> String {
@@ -1015,35 +793,31 @@ struct DashboardView: View {
         return MetricFormatter.rate(bytesPerSecond: rates.reduce(0, +))
     }
 
-    private func fanProgress(_ fan: FanState) -> Double {
-        let maximum = fan.maximumRPM ?? max(fan.currentRPM, 1)
-        guard maximum > 0 else { return 0 }
-        return min(max(Double(fan.currentRPM) / Double(maximum), 0), 1)
-    }
-
     private var memoryChange: Double? {
-        guard let first = timelineSamples.first?.memoryPressurePercent,
-              let last = timelineSamples.last?.memoryPressurePercent,
-              timelineSamples.count > 1
+        let samples = visibleTimelineSamples
+        guard let first = samples.first?.memoryPressurePercent,
+              let last = samples.last?.memoryPressurePercent,
+              samples.count > 1
         else { return nil }
         return last - first
     }
 
     private var memoryChangeTitle: String {
         guard let memoryChange else { return localized("正在建立变化基线") }
-        if abs(memoryChange) < 0.5 { return localized("内存压力保持稳定") }
+        if abs(memoryChange) < 0.5 { return localized("内存占用保持稳定") }
         let direction = localized(memoryChange > 0 ? "上升" : "下降")
         return AppLocalization.format(
             "dashboard.memory.change",
-            defaultValue: "内存压力%@ %@",
+            defaultValue: "内存占用%@ %@ 个百分点",
             locale: locale,
             direction,
-            MetricFormatter.percent(abs(memoryChange))
+            String(Int(abs(memoryChange).rounded()))
         )
     }
 
     private var memoryChangeDetail: String {
-        guard let first = timelineSamples.first?.date else { return localized("等待下一次真实采样") }
+        let samples = visibleTimelineSamples
+        guard samples.count > 1, let first = samples.first?.date else { return localized("等待下一次真实采样") }
         return AppLocalization.format(
             "dashboard.compare.time",
             defaultValue: "与 %@ 的记录相比",
@@ -1065,15 +839,6 @@ struct DashboardView: View {
         return memoryChange > 0 ? CalmTheme.amber : CalmTheme.mint
     }
 
-    private var historyTitle: String {
-        AppLocalization.format(
-            "dashboard.history.title",
-            defaultValue: "资源历史（%ld 分钟）",
-            locale: locale,
-            historyWindowMinutes
-        )
-    }
-
     private func minutesLabel(_ minutes: Int) -> String {
         AppLocalization.format(
             "dashboard.minutes",
@@ -1092,33 +857,62 @@ struct DashboardView: View {
         )
     }
 
-    private func openDestinationLabel(for metric: TopologyMetric) -> String {
-        AppLocalization.format(
-            "dashboard.open.destination",
-            defaultValue: "打开%@",
-            locale: locale,
-            topologyDestination(for: metric).title
-        )
-    }
-
     private func localized(_ value: String) -> String {
         AppLocalization.string(value, defaultValue: value, locale: locale)
     }
 
 }
 
-private enum TopologyMetric: String, CaseIterable, Identifiable {
+private enum DashboardResource: String, CaseIterable, Identifiable {
     case cpu
     case gpu
     case memory
     case cooling
     case storage
     case network
+    case battery
 
     var id: String { rawValue }
+
+    var section: MenuBarDashboardSection {
+        switch self {
+        case .cpu: .cpu
+        case .memory: .memory
+        case .gpu: .gpu
+        case .storage: .storage
+        case .network: .network
+        case .cooling: .fans
+        case .battery: .battery
+        }
+    }
+
+    init(section: MenuBarDashboardSection) {
+        switch section {
+        case .cpu: self = .cpu
+        case .memory: self = .memory
+        case .gpu: self = .gpu
+        case .storage: self = .storage
+        case .network: self = .network
+        case .fans, .sensors: self = .cooling
+        case .battery: self = .battery
+        }
+    }
+
+    var detailTitle: String {
+        switch self {
+        case .cpu: "核心与进程"
+        case .memory: "内存明细"
+        case .gpu: "图形详情"
+        case .storage: "磁盘明细"
+        case .network: "网络接口"
+        case .cooling: "传感器明细"
+        case .battery: "电池与电源"
+        }
+    }
+
 }
 
-private struct TopologyCardContent {
+private struct DashboardResourceContent {
     let title: String
     let value: String
     let detail: String
@@ -1127,76 +921,124 @@ private struct TopologyCardContent {
     let points: [Double]
 }
 
-private struct TimelinePoint: Identifiable, Equatable {
+struct TimelinePoint: Identifiable, Equatable {
     let date: Date
-    let value: Double
+    let value: Double?
 
     var id: Date { date }
 }
 
-private struct TopologyMetricCard: View {
+/// Persistent history has one observation per minute; live history is denser.
+/// Keep those valid samples connected while preserving missing readings and downtime.
+enum DashboardTimelinePolicy {
+    static func segments(_ values: [TimelinePoint]) -> [[TimelinePoint]] {
+        let maximumGap = 2 * DashboardHistoryStore.persistenceSampleInterval
+            + DashboardHistoryPolicy.minimumSampleInterval
+        var segments: [[TimelinePoint]] = []
+        var current: [TimelinePoint] = []
+        for point in values {
+            guard let value = point.value, value.isFinite else {
+                if !current.isEmpty { segments.append(current); current = [] }
+                continue
+            }
+            if let previous = current.last,
+               point.date.timeIntervalSince(previous.date) > maximumGap {
+                segments.append(current)
+                current = []
+            }
+            current.append(point)
+        }
+        if !current.isEmpty { segments.append(current) }
+        return segments
+    }
+
+    static func normalizedX(date: Date, latestDate: Date, windowSeconds: TimeInterval) -> Double {
+        1 - min(max(latestDate.timeIntervalSince(date) / max(windowSeconds, 1), 0), 1)
+    }
+}
+
+private struct DashboardResourceCard: View {
     @Environment(\.locale) private var locale
-    let title: String
-    let value: String
-    let detail: String
-    let symbol: String
-    let tint: Color
-    let points: [Double]
+    @State private var isHovered = false
+    let content: DashboardResourceContent
+    let detailTitle: String
+    let isExpanded: Bool
+    let storageFraction: Double?
+    let isBattery: Bool
+    let chartMaximum: Double?
 
     var body: some View {
-        ViewThatFits(in: .horizontal) {
-            HStack(spacing: 11) {
-                metricIcon
-                metricLabels
-                Spacer(minLength: 2)
-                if !points.isEmpty {
-                    Sparkline(values: points, color: tint, fill: false)
-                        .frame(width: 42, height: 27)
-                }
-            }
-            .frame(minWidth: 202)
-
-            HStack(spacing: 11) {
-                metricIcon
-                metricLabels
+        VStack(alignment: .leading, spacing: 0) {
+            HStack(spacing: 9) {
+                Image(systemName: content.symbol)
+                    .font(.system(size: 18, weight: .medium))
+                    .foregroundStyle(content.tint)
+                    .frame(width: 24)
+                Text(localized(content.title))
+                    .font(.system(size: 14, weight: .semibold))
                 Spacer(minLength: 0)
             }
+            Text(content.value)
+                .font(.system(size: 31, weight: .semibold, design: .rounded))
+                .monospacedDigit()
+                .lineLimit(1)
+                .minimumScaleFactor(0.65)
+                .padding(.top, 12)
+            Text(content.detail)
+                .font(.system(size: 11.5))
+                .foregroundStyle(CalmTheme.secondaryText)
+                .lineLimit(1)
+                .help(content.detail)
+                .padding(.top, 3)
+
+            Group {
+                if let storageFraction {
+                    VStack(spacing: 6) {
+                        DashboardProgressBar(
+                            value: storageFraction, tint: content.tint,
+                            accessibilityLabel: localized(isBattery ? "电量" : "存储"),
+                            accessibilityValue: MetricFormatter.percent(storageFraction * 100)
+                        )
+                        HStack {
+                            Text(localized(isBattery ? "电量" : "已用"))
+                            Spacer()
+                            Text(localized(isBattery ? "满电" : "可用"))
+                        }
+                        .font(.system(size: 10))
+                        .foregroundStyle(CalmTheme.tertiaryText)
+                    }
+                } else if content.points.count > 1, !content.value.contains("—") {
+                    DashboardMiniTrend(values: content.points, tint: content.tint, maximum: chartMaximum)
+                } else {
+                    Text(localized(content.value.contains("—") ? "暂无可用数据" : "正在积累趋势"))
+                        .font(.system(size: 11))
+                        .foregroundStyle(CalmTheme.tertiaryText)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
+            }
+            .frame(height: 42)
+            .padding(.vertical, 14)
+
+            Rectangle().fill(CalmTheme.hairline.opacity(0.6)).frame(height: 1)
+            HStack {
+                Text(detailTitle).font(.system(size: 11.5, weight: .medium))
+                Spacer()
+                Image(systemName: isExpanded ? "chevron.up" : "chevron.down")
+                    .font(.system(size: 9, weight: .semibold))
+            }
+            .foregroundStyle(isExpanded ? content.tint : CalmTheme.secondaryText)
+            .padding(.top, 11)
         }
-        .padding(11)
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
-        .background(DashboardPalette.raisedCard, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+        .padding(18)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(CalmTheme.surface, in: RoundedRectangle(cornerRadius: 14))
         .overlay {
-            RoundedRectangle(cornerRadius: 10, style: .continuous)
-                .strokeBorder(CalmTheme.strongHairline)
+            RoundedRectangle(cornerRadius: 14)
+                .strokeBorder(isExpanded ? content.tint.opacity(0.65) : (isHovered ? content.tint.opacity(0.4) : CalmTheme.hairline.opacity(0.7)), lineWidth: 1)
         }
+        .onHover { isHovered = $0 }
+        .contentShape(RoundedRectangle(cornerRadius: 14))
         .accessibilityElement(children: .combine)
-    }
-
-    private var metricIcon: some View {
-        Image(systemName: symbol)
-            .font(.system(size: 20, weight: .medium))
-            .foregroundStyle(tint)
-            .frame(width: 44, height: 44)
-            .background(tint.opacity(0.13), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
-    }
-
-    private var metricLabels: some View {
-        VStack(alignment: .leading, spacing: 3) {
-            Text(localized(title))
-                .font(.system(size: 10.5, weight: .semibold))
-                .foregroundStyle(CalmTheme.secondaryText)
-            Text(value)
-                .font(.system(size: 18, weight: .semibold, design: .rounded))
-                .contentTransition(.numericText())
-                .lineLimit(1)
-                .minimumScaleFactor(0.72)
-            Text(localized(detail))
-                .font(.system(size: 8.5))
-                .foregroundStyle(CalmTheme.secondaryText)
-                .lineLimit(1)
-                .truncationMode(.tail)
-        }
-        .layoutPriority(1)
     }
 
     private func localized(_ value: String) -> String {
@@ -1204,66 +1046,37 @@ private struct TopologyMetricCard: View {
     }
 }
 
-private struct NetworkTopologyMetricCard: View {
-    @Environment(\.locale) private var locale
-    let received: String
-    let sent: String
-    let detail: String
-    let points: [Double]
+private struct DashboardMiniTrend: View {
+    let values: [Double]
+    let tint: Color
+    let maximum: Double?
 
     var body: some View {
-        HStack(spacing: 11) {
-            Image(systemName: "globe")
-                .font(.system(size: 21, weight: .medium))
-                .foregroundStyle(CalmTheme.amber)
-                .frame(width: 44, height: 44)
-                .background(
-                    CalmTheme.amber.opacity(0.15),
-                    in: RoundedRectangle(cornerRadius: 10, style: .continuous)
-                )
-
-            VStack(alignment: .leading, spacing: 2) {
-                Text("网络")
-                    .font(.system(size: 10.5, weight: .semibold))
-                    .foregroundStyle(CalmTheme.secondaryText)
-                VStack(alignment: .leading, spacing: 0) {
-                    Text("↑ \(sent)")
-                    Text("↓ \(received)")
-                }
-                .font(.system(size: 9.5, weight: .semibold, design: .rounded))
-                .lineLimit(1)
-                .minimumScaleFactor(0.7)
-                Text(AppLocalization.string(detail, defaultValue: detail, locale: locale))
-                    .font(.system(size: 8.5))
-                    .foregroundStyle(CalmTheme.secondaryText)
-                    .lineLimit(1)
+        Canvas { context, size in
+            let samples = Array(values.suffix(60))
+            guard samples.count > 1 else { return }
+            let ceiling = max(maximum ?? ((samples.max() ?? 1) * 1.15), 1)
+            var grid = Path()
+            for index in 0 ... 6 {
+                let x = size.width * Double(index) / 6
+                grid.move(to: CGPoint(x: x, y: 0))
+                grid.addLine(to: CGPoint(x: x, y: size.height))
             }
-            .layoutPriority(1)
-
-            Spacer(minLength: 2)
-            if !points.isEmpty {
-                Sparkline(values: points, color: CalmTheme.amber, fill: false)
-                    .frame(width: 42, height: 27)
+            context.stroke(grid, with: .color(CalmTheme.hairline.opacity(0.4)), style: StrokeStyle(lineWidth: 0.5, dash: [2, 3]))
+            let points = samples.enumerated().map { index, value in
+                CGPoint(x: size.width * Double(index) / Double(samples.count - 1),
+                        y: size.height - 2 - (size.height - 4) * min(max(value / ceiling, 0), 1))
             }
+            var line = Path()
+            line.addLines(points)
+            var area = line
+            area.addLine(to: CGPoint(x: size.width, y: size.height))
+            area.addLine(to: CGPoint(x: 0, y: size.height))
+            area.closeSubpath()
+            context.fill(area, with: .linearGradient(Gradient(colors: [tint.opacity(0.18), tint.opacity(0.02)]), startPoint: .zero, endPoint: CGPoint(x: 0, y: size.height)))
+            context.stroke(line, with: .color(tint), style: StrokeStyle(lineWidth: 1.6, lineCap: .round, lineJoin: .round))
         }
-        .padding(11)
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
-        .background(DashboardPalette.raisedCard, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
-        .overlay {
-            RoundedRectangle(cornerRadius: 10, style: .continuous)
-                .strokeBorder(CalmTheme.strongHairline)
-        }
-        .accessibilityElement(children: .combine)
-        .accessibilityLabel(
-            AppLocalization.format(
-                "dashboard.network.accessibility",
-                defaultValue: "网络，上行 %@，下行 %@，%@",
-                locale: locale,
-                sent,
-                received,
-                AppLocalization.string(detail, defaultValue: detail, locale: locale)
-            )
-        )
+        .accessibilityHidden(true)
     }
 }
 
@@ -1288,11 +1101,11 @@ private struct DashboardHistoryTooltip: View {
                 .padding(.bottom, 2)
             tooltipRow("CPU", value: MetricFormatter.percent(sample.cpuPercent), color: CalmTheme.accent)
             tooltipRow("GPU", value: optionalPercent(sample.gpuPercent), color: CalmTheme.cyan)
-            tooltipRow("内存", value: MetricFormatter.percent(sample.memoryPressurePercent), color: CalmTheme.violet)
+            tooltipRow("内存占用", value: MetricFormatter.percent(sample.memoryPressurePercent), color: CalmTheme.violet)
             tooltipRow("存储", value: optionalPercent(sample.storageUsedPercent), color: CalmTheme.cyan)
             tooltipRow(
                 "网络",
-                value: MetricFormatter.rate(bytesPerSecond: sample.networkBytesPerSecond),
+                value: sample.networkBytesPerSecond.map { MetricFormatter.rate(bytesPerSecond: $0) } ?? "—",
                 color: CalmTheme.amber
             )
             tooltipRow(
@@ -1310,7 +1123,7 @@ private struct DashboardHistoryTooltip: View {
         )
         .overlay {
             RoundedRectangle(cornerRadius: 9, style: .continuous)
-                .strokeBorder(CalmTheme.strongHairline)
+                .strokeBorder(CalmTheme.hairline.opacity(0.65))
         }
         .shadow(color: Color.black.opacity(0.24), radius: 12, y: 5)
     }
@@ -1352,17 +1165,17 @@ private struct DashboardEventRow: View {
 
             VStack(alignment: .leading, spacing: 2) {
                 Text(event.localizedTitle(locale: locale))
-                    .font(.system(size: 9.5, weight: .medium))
+                    .font(.system(size: 11.5, weight: .medium))
                     .lineLimit(1)
                 Text(event.localizedDetail(locale: locale))
-                    .font(.system(size: 8.5))
+                    .font(.system(size: 10))
                     .foregroundStyle(CalmTheme.secondaryText)
                     .lineLimit(1)
             }
 
             Spacer(minLength: 4)
             Text(event.occurredAt, style: .relative)
-                .font(.system(size: 8.5))
+                .font(.system(size: 10))
                 .foregroundStyle(CalmTheme.tertiaryText)
                 .lineLimit(1)
         }
@@ -1373,6 +1186,7 @@ private struct DashboardEventRow: View {
 
 private struct DashboardEventListSheet: View {
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.locale) private var locale
 
     let events: [DashboardEventRecord]
 
@@ -1380,14 +1194,14 @@ private struct DashboardEventListSheet: View {
         VStack(spacing: 0) {
             HStack(spacing: 12) {
                 VStack(alignment: .leading, spacing: 3) {
-                    Text("全部事件")
+                    Text(AppLocalization.string("全部事件", defaultValue: "全部事件", locale: locale))
                         .font(.system(size: 18, weight: .semibold))
-                    Text("本次监控期间观测到的真实状态变化")
+                    Text(AppLocalization.string("本次监控期间观测到的真实状态变化", defaultValue: "本次监控期间观测到的真实状态变化", locale: locale))
                         .font(.system(size: 11))
                         .foregroundStyle(CalmTheme.secondaryText)
                 }
                 Spacer()
-                Button("完成") {
+                Button(AppLocalization.string("完成", defaultValue: "完成", locale: locale)) {
                     dismiss()
                 }
                 .buttonStyle(CalmButtonStyle(prominent: true))
@@ -1400,9 +1214,9 @@ private struct DashboardEventListSheet: View {
 
             if events.isEmpty {
                 ContentUnavailableView(
-                    "暂无事件",
+                    AppLocalization.string("暂无事件", defaultValue: "暂无事件", locale: locale),
                     systemImage: "clock.arrow.circlepath",
-                    description: Text("继续监控后，状态变化会显示在这里。")
+                    description: Text(AppLocalization.string("继续监控后，状态变化会显示在这里。", defaultValue: "继续监控后，状态变化会显示在这里。", locale: locale))
                 )
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
@@ -1423,130 +1237,8 @@ private struct DashboardEventListSheet: View {
             }
         }
         .frame(minWidth: 460, minHeight: 420)
-        .background(DashboardPalette.canvas)
+        .background(CalmTheme.canvas)
         .foregroundStyle(CalmTheme.primaryText)
-    }
-}
-
-private struct TopologyCenterNode: View {
-    @Environment(\.locale) private var locale
-    let modelName: String
-    let modelIdentifier: String
-    let chipName: String
-    let stateColor: Color
-
-    var body: some View {
-        let artwork = SystemDeviceArtworkResolver.shared.artwork(
-            modelIdentifier: modelIdentifier,
-            modelName: modelName
-        )
-
-        ZStack {
-            Circle()
-                .strokeBorder(.primary.opacity(0.08), lineWidth: 1)
-                .frame(width: 130, height: 130)
-            Circle()
-                .strokeBorder(CalmTheme.accent.opacity(0.68), lineWidth: 2)
-                .frame(width: 118, height: 118)
-            Circle()
-                .fill(DashboardPalette.raisedCard)
-                .frame(width: 108, height: 108)
-                .shadow(color: CalmTheme.accent.opacity(0.16), radius: 14)
-
-            VStack(spacing: 3) {
-                if let deviceImage = artwork.image {
-                    Image(nsImage: deviceImage)
-                        .resizable()
-                        .interpolation(.high)
-                        .aspectRatio(contentMode: .fit)
-                        .frame(width: 70, height: 35)
-                        .accessibilityHidden(true)
-                } else {
-                    Image(systemName: artwork.symbolName)
-                        .font(.system(size: 34, weight: .light))
-                        .symbolRenderingMode(.hierarchical)
-                        .foregroundStyle(CalmTheme.secondaryText)
-                        .accessibilityHidden(true)
-                }
-                Text(modelName)
-                    .font(.system(size: 10, weight: .semibold))
-                    .lineLimit(1)
-                Text(chipName)
-                    .font(.system(size: 8.5))
-                    .foregroundStyle(CalmTheme.secondaryText)
-                    .lineLimit(1)
-            }
-            .frame(width: 94)
-
-            Circle()
-                .fill(stateColor)
-                .frame(width: 9, height: 9)
-                .overlay(Circle().stroke(CalmTheme.canvas, lineWidth: 2))
-                .offset(x: 41, y: -41)
-        }
-        .frame(width: 130, height: 130)
-        .accessibilityElement(children: .combine)
-        .accessibilityLabel(
-            AppLocalization.format(
-                "dashboard.center.accessibility",
-                defaultValue: "系统中心，%@，%@",
-                locale: locale,
-                modelName,
-                chipName
-            )
-        )
-    }
-}
-
-private struct TopologyConnectors: View {
-    let leftEdgeX: CGFloat
-    let rightEdgeX: CGFloat
-    let centerX: CGFloat
-    let rowY: [CGFloat]
-    let leftColors: [Color]
-    let rightColors: [Color]
-
-    var body: some View {
-        Canvas { context, size in
-            guard rowY.count == 3 else { return }
-            let centerRadius = 59.0
-
-            for y in rowY {
-                var leftPath = Path()
-                leftPath.move(to: CGPoint(x: leftEdgeX, y: y))
-                leftPath.addCurve(
-                    to: CGPoint(x: centerX - centerRadius, y: rowY[1]),
-                    control1: CGPoint(x: leftEdgeX + 44, y: y),
-                    control2: CGPoint(x: centerX - centerRadius - 34, y: rowY[1])
-                )
-                context.stroke(leftPath, with: .color(.primary.opacity(0.14)), lineWidth: 1.5)
-
-                var rightPath = Path()
-                rightPath.move(to: CGPoint(x: rightEdgeX, y: y))
-                rightPath.addCurve(
-                    to: CGPoint(x: centerX + centerRadius, y: rowY[1]),
-                    control1: CGPoint(x: rightEdgeX - 44, y: y),
-                    control2: CGPoint(x: centerX + centerRadius + 34, y: rowY[1])
-                )
-                context.stroke(rightPath, with: .color(.primary.opacity(0.14)), lineWidth: 1.5)
-            }
-
-            let pointsAndColors = zip(
-                [
-                    CGPoint(x: leftEdgeX, y: rowY[0]),
-                    CGPoint(x: leftEdgeX, y: rowY[1]),
-                    CGPoint(x: leftEdgeX, y: rowY[2]),
-                    CGPoint(x: rightEdgeX, y: rowY[0]),
-                    CGPoint(x: rightEdgeX, y: rowY[1]),
-                    CGPoint(x: rightEdgeX, y: rowY[2])
-                ],
-                leftColors + rightColors
-            )
-            for (point, color) in pointsAndColors {
-                let rect = CGRect(x: point.x - 3.5, y: point.y - 3.5, width: 7, height: 7)
-                context.fill(Path(ellipseIn: rect), with: .color(color))
-            }
-        }
     }
 }
 
@@ -1555,11 +1247,13 @@ private struct TimelineTrace: View, Equatable {
     let color: Color
     let domain: ClosedRange<Double>?
     let windowSeconds: TimeInterval
+    let latestDate: Date
 
     nonisolated static func == (lhs: TimelineTrace, rhs: TimelineTrace) -> Bool {
         lhs.values == rhs.values
             && lhs.domain == rhs.domain
             && lhs.windowSeconds == rhs.windowSeconds
+            && lhs.latestDate == rhs.latestDate
     }
 
     var body: some View {
@@ -1573,27 +1267,33 @@ private struct TimelineTrace: View, Equatable {
             }
 
             guard !values.isEmpty else { return }
-            let latestDate = values.last?.date ?? Date()
             let range = resolvedDomain
             let valueSpan = max(range.upperBound - range.lowerBound, 0.001)
             var path = Path()
 
-            for (index, point) in values.enumerated() {
-                let age = latestDate.timeIntervalSince(point.date)
-                let x = size.width * (1 - min(max(age / max(windowSeconds, 1), 0), 1))
-                let normalized = min(max((point.value - range.lowerBound) / valueSpan, 0), 1)
-                let y = size.height - CGFloat(normalized) * max(size.height - 3, 1) - 1.5
-                let position = CGPoint(x: x, y: y)
-                if index == 0 { path.move(to: position) } else { path.addLine(to: position) }
+            for segment in DashboardTimelinePolicy.segments(values) {
+                for (index, point) in segment.enumerated() {
+                    guard let value = point.value else { continue }
+                    let x = size.width * DashboardTimelinePolicy.normalizedX(
+                        date: point.date, latestDate: latestDate, windowSeconds: windowSeconds
+                    )
+                    let normalized = min(max((value - range.lowerBound) / valueSpan, 0), 1)
+                    let y = size.height - CGFloat(normalized) * max(size.height - 3, 1) - 1.5
+                    let position = CGPoint(x: x, y: y)
+                    if index == 0 { path.move(to: position) } else { path.addLine(to: position) }
+                }
             }
 
             context.stroke(path, with: .color(color.opacity(0.38)), lineWidth: 4)
             context.stroke(path, with: .color(color), style: StrokeStyle(lineWidth: 1.6, lineCap: .round, lineJoin: .round))
 
-            if let last = values.last {
-                let normalized = min(max((last.value - range.lowerBound) / valueSpan, 0), 1)
+            if let last = values.last, let value = last.value {
+                let normalized = min(max((value - range.lowerBound) / valueSpan, 0), 1)
                 let y = size.height - CGFloat(normalized) * max(size.height - 3, 1) - 1.5
-                let dot = CGRect(x: size.width - 2.5, y: y - 2.5, width: 5, height: 5)
+                let x = size.width * DashboardTimelinePolicy.normalizedX(
+                    date: last.date, latestDate: latestDate, windowSeconds: windowSeconds
+                )
+                let dot = CGRect(x: x - 2.5, y: y - 2.5, width: 5, height: 5)
                 context.fill(Path(ellipseIn: dot), with: .color(color))
             }
         }
@@ -1602,7 +1302,7 @@ private struct TimelineTrace: View, Equatable {
 
     private var resolvedDomain: ClosedRange<Double> {
         if let domain { return domain }
-        let maximum = max(values.map(\.value).max() ?? 1, 1)
+        let maximum = max(values.compactMap(\.value).max() ?? 1, 1)
         return 0 ... maximum * 1.08
     }
 }
@@ -1635,7 +1335,7 @@ private struct DashboardPanelModifier: ViewModifier {
 
     func body(content: Content) -> some View {
         content
-            .background(DashboardPalette.card, in: RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
+            .background(CalmTheme.surface, in: RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
             .overlay {
                 RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
                     .strokeBorder(CalmTheme.hairline)

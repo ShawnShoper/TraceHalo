@@ -6,8 +6,35 @@ import XCTest
 
 final class MainWindowAndSidebarLayoutTests: XCTestCase {
     @MainActor
+    func testMenuBarRestoresHiddenWindowWithSwiftUISceneIdentifier() {
+        let application = NSApplication.shared
+        let previousPolicy = application.activationPolicy()
+        let router = AppNavigationRouter(destination: .report)
+        let controller = MenuBarStatusItemController(model: AppModel(), navigationRouter: router)
+        let window = NSWindow(
+            contentRect: CGRect(x: 0, y: 0, width: 240, height: 180),
+            styleMask: [.titled, .closable],
+            backing: .buffered,
+            defer: false
+        )
+        window.isReleasedWhenClosed = false
+        window.identifier = NSUserInterfaceItemIdentifier("main")
+        defer {
+            window.close()
+            application.setActivationPolicy(previousPolicy)
+        }
+
+        XCTAssertFalse(window.isVisible)
+
+        controller.showMainWindow()
+
+        XCTAssertTrue(window.isVisible)
+        XCTAssertEqual(router.destination, .dashboard)
+    }
+
+    @MainActor
     func testRepeatedNavigationToTheActivePageDoesNotInvalidateObservers() {
-        let router = AppNavigationRouter(destination: .monitor)
+        let router = AppNavigationRouter(destination: .dashboard)
         let invalidationCounter = ThreadSafeInvalidationCounter()
 
         withObservationTracking {
@@ -16,10 +43,10 @@ final class MainWindowAndSidebarLayoutTests: XCTestCase {
             invalidationCounter.increment()
         }
 
-        router.navigate(to: .monitor)
+        router.navigate(to: .dashboard)
 
         XCTAssertEqual(invalidationCounter.value, 0)
-        XCTAssertEqual(router.destination, .monitor)
+        XCTAssertEqual(router.destination, .dashboard)
     }
 
     func testMainWindowUsesPreferredCanvasWhenScreenCanContainIt() {
@@ -595,7 +622,7 @@ final class MainWindowAndSidebarLayoutTests: XCTestCase {
     }
 
     func testSidebarKeepsRequestedNavigationTitlesComplete() {
-        XCTAssertEqual(SidebarLayout.title(for: .monitor), "实时监控")
+        XCTAssertEqual(SidebarLayout.title(for: .dashboard), "实时监控")
         XCTAssertEqual(SidebarLayout.title(for: .optimizer), "启动优化")
         XCTAssertEqual(SidebarLayout.title(for: .uninstaller), "应用管理")
         XCTAssertEqual(SidebarLayout.title(for: .inputDevices), "键盘鼠标")
@@ -677,8 +704,8 @@ final class MainWindowAndSidebarLayoutTests: XCTestCase {
         let expectations: [(URL, String, String, String)] = [
             (
                 packageRoot.appendingPathComponent("Resources/Info.plist"),
-                "0.1.1",
-                "3",
+                "0.2.0",
+                "26",
                 "Beta"
             ),
             (

@@ -26,26 +26,26 @@ final class DashboardLocalizationTests: XCTestCase {
     func testFormattedEventLocalizesItsSemanticArgumentsAtRenderTime() {
         let event = DashboardEventRecord(
             titleKey: "dashboard.event.memory.change",
-            titleDefaultValue: "内存压力%@ %@",
-            titleArguments: ["上升", "8%"],
+            titleDefaultValue: "内存占用%@ %@ 个百分点",
+            titleArguments: ["上升", "8"],
             titleLocalizedArgumentIndices: [0],
-            detailKey: "与上一次采样相比",
-            detailDefaultValue: "与上一次采样相比",
+            detailKey: "与上次记录值相比",
+            detailDefaultValue: "与上次记录值相比",
             occurredAt: Date(timeIntervalSince1970: 1_700_000_000),
             color: .orange
         )
 
         XCTAssertEqual(
             event.localizedTitle(locale: Locale(identifier: "en")),
-            "Memory pressure increased 8%"
+            "Memory usage increased 8 pp"
         )
         XCTAssertEqual(
             event.localizedTitle(locale: Locale(identifier: "zh-Hans")),
-            "内存压力上升 8%"
+            "内存占用上升 8 个百分点"
         )
         XCTAssertEqual(
             event.localizedDetail(locale: Locale(identifier: "en")),
-            "Compared with the previous sample"
+            "Compared with the last recorded level"
         )
     }
 

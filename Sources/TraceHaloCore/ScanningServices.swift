@@ -24,11 +24,16 @@ public protocol StartupItemProviding: Sendable {
 public protocol ApplicationProviding: Sendable {
     func applications() async throws -> [ApplicationCandidate]
     func enrichedApplication(_ application: ApplicationCandidate) async -> ApplicationCandidate
+    func sizeBytes(for application: ApplicationCandidate) async -> UInt64?
 }
 
 public extension ApplicationProviding {
     func enrichedApplication(_ application: ApplicationCandidate) async -> ApplicationCandidate {
         application
+    }
+
+    func sizeBytes(for application: ApplicationCandidate) async -> UInt64? {
+        application.sizeBytes
     }
 }
 
@@ -230,6 +235,11 @@ public struct StartupItemScanner: StartupItemProviding, Sendable {
 
 /// Read-only application inventory and conservative associated-file discovery.
 public struct ApplicationScanner: ApplicationProviding, Sendable {
+    private struct FileIdentity: Hashable {
+        let device: dev_t
+        let inode: ino_t
+    }
+
     private struct AssociationLocation: Sendable {
         var root: URL
         var relativePath: String
@@ -305,6 +315,51 @@ public struct ApplicationScanner: ApplicationProviding, Sendable {
         await Task.detached(priority: .utility) {
             enrichedCandidate(for: application.bundleURL) ?? application
         }.value
+    }
+
+    @concurrent
+    public func sizeBytes(for application: ApplicationCandidate) async -> UInt64? {
+        application.bundleURL.withUnsafeFileSystemRepresentation { path in
+            guard let path else { return nil }
+            var roots = [UnsafeMutablePointer(mutating: path), nil]
+            // Keep the walk inside the bundle's filesystem, without following symlinks.
+            guard let tree = fts_open(&roots, FTS_PHYSICAL | FTS_NOCHDIR | FTS_XDEV, nil) else {
+                return nil
+            }
+            defer { fts_close(tree) }
+
+            var blocks: UInt64 = 0
+            var hardLinks = Set<FileIdentity>()
+            while !Task.isCancelled {
+                errno = 0
+                guard let entry = fts_read(tree)?.pointee else {
+                    guard errno == 0 else { return nil }
+                    // Darwin reports st_blocks in 512-byte units.
+                    let bytes = blocks.multipliedReportingOverflow(by: 512)
+                    return bytes.overflow ? nil : bytes.partialValue
+                }
+
+                let kind = Int32(entry.fts_info)
+                if entry.fts_level == 0, kind != FTS_D, kind != FTS_DP { return nil }
+                switch kind {
+                case FTS_D: continue
+                case FTS_DP, FTS_F, FTS_SL, FTS_SLNONE, FTS_DEFAULT: break
+                default: return nil
+                }
+                guard let file = entry.fts_statp?.pointee, file.st_blocks >= 0 else { return nil }
+
+                // Multiple names for the same file share its allocated blocks.
+                if kind != FTS_DP, file.st_nlink > 1 {
+                    let identity = FileIdentity(device: file.st_dev, inode: file.st_ino)
+                    guard hardLinks.insert(identity).inserted else { continue }
+                }
+
+                let sum = blocks.addingReportingOverflow(UInt64(file.st_blocks))
+                guard !sum.overflow else { return nil }
+                blocks = sum.partialValue
+            }
+            return nil
+        }
     }
 
     public func scanAssociatedFiles(for application: ApplicationCandidate) -> [AssociatedFile] {
@@ -413,16 +468,19 @@ public struct ApplicationScanner: ApplicationProviding, Sendable {
         let name = (info?["CFBundleDisplayName"] as? String)
             ?? (info?["CFBundleName"] as? String)
             ?? URL.deletingPathExtension().lastPathComponent
+        let version = [info?["CFBundleShortVersionString"], info?["CFBundleVersion"]]
+            .compactMap { ($0 as? String)?.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .first { !$0.isEmpty }
         var candidate = ApplicationCandidate(
             name: name,
             bundleIdentifier: bundle?.bundleIdentifier,
-            version: (info?["CFBundleShortVersionString"] as? String)
-                ?? (info?["CFBundleVersion"] as? String),
+            version: version,
             bundleURL: URL,
             sizeBytes: nil
         )
         if includeDetails {
             candidate.associatedFiles = scanAssociatedFiles(for: candidate)
+            candidate.vendorUninstaller = VendorUninstallerScanner.find(for: candidate)
         }
         return candidate
     }
@@ -455,9 +513,8 @@ public struct ApplicationScanner: ApplicationProviding, Sendable {
         }
     }
 
-    /// Directory packages and support folders are deliberately not traversed.
-    /// A recursive size walk can consume substantial CPU and memory for large
-    /// applications, and a partial walk would present a misleading exact value.
+    /// Associated folders can contain large or shared data, so discovering
+    /// associated files only reads sizes for individual regular files.
     private static func nonRecursiveRegularFileSize(of URL: URL) -> UInt64? {
         let typeKeys: Set<URLResourceKey> = [.isRegularFileKey, .isSymbolicLinkKey]
         guard let type = try? URL.resourceValues(forKeys: typeKeys),
@@ -478,11 +535,50 @@ public struct ApplicationScanner: ApplicationProviding, Sendable {
     }
 }
 
-/// Production uninstall executor. Every target is validated before the first item
-/// is moved, and removal uses Finder's Trash rather than permanent deletion.
-/// SafeTestMode always denies execution.
+public struct UninstallAppMoveUnconfirmed: LocalizedError, Sendable {
+    public let applicationURL: URL
+
+    public init(applicationURL: URL) {
+        self.applicationURL = applicationURL
+    }
+
+    public var errorDescription: String? {
+        localizedDescription()
+    }
+
+    public func localizedDescription(locale: Locale? = nil) -> String {
+        TraceHaloLocalization.format(
+            "uninstall.appMoveUnconfirmed",
+            defaultValue: "Could not confirm whether “%@” moved to the Trash. Local data was kept. Check the Trash before retrying.",
+            locale: locale,
+            applicationURL.lastPathComponent
+        )
+    }
+}
+
 public enum UninstallExecutionError: LocalizedError, Sendable {
     case partialCompletion(moved: Int, total: Int, reason: String)
+    case moveFailed(targetURL: URL, isApplication: Bool, permissionDenied: Bool, reason: String)
+    case cleanupIncomplete(moved: Int, total: Int, targetURL: URL, permissionDenied: Bool, reason: String)
+
+    public var didMoveApplication: Bool {
+        if case .cleanupIncomplete = self { return true }
+        return false
+    }
+
+    public var failedTargetURL: URL? {
+        switch self {
+        case let .moveFailed(url, _, _, _), let .cleanupIncomplete(_, _, url, _, _): url
+        case .partialCompletion: nil
+        }
+    }
+
+    public var isPermissionDenied: Bool {
+        switch self {
+        case let .moveFailed(_, _, denied, _), let .cleanupIncomplete(_, _, _, denied, _): denied
+        case .partialCompletion: false
+        }
+    }
 
     public var errorDescription: String? {
         localizedDescription()
@@ -501,10 +597,49 @@ public enum UninstallExecutionError: LocalizedError, Sendable {
                 locale: locale,
                 moved, total, reason
             )
+        case let .moveFailed(url, _, permissionDenied, reason):
+            return TraceHaloLocalization.format(
+                "uninstall.noItemsMoved",
+                defaultValue: "%@. No items were moved to the Trash.",
+                locale: locale,
+                Self.moveFailureReason(url, permissionDenied: permissionDenied, reason: reason, locale: locale)
+            )
+        case let .cleanupIncomplete(moved, total, url, permissionDenied, reason):
+            return TraceHaloLocalization.format(
+                "uninstall.cleanupIncomplete",
+                defaultValue: "The app is in the Trash. Moved %ld of %ld selected data items. %@. Cleanup stopped.",
+                locale: locale,
+                moved - 1, total - 1,
+                Self.moveFailureReason(url, permissionDenied: permissionDenied, reason: reason, locale: locale)
+            )
         }
+    }
+
+    private static func moveFailureReason(
+        _ url: URL,
+        permissionDenied: Bool,
+        reason: String,
+        locale: Locale?
+    ) -> String {
+        if permissionDenied {
+            return TraceHaloLocalization.format(
+                "uninstall.movePermissionDenied",
+                defaultValue: "Moving “%@” to the Trash requires additional permission",
+                locale: locale,
+                url.lastPathComponent
+            )
+        }
+        return TraceHaloLocalization.format(
+            "uninstall.moveError",
+            defaultValue: "Could not move “%@” to the Trash (%@)",
+            locale: locale,
+            url.lastPathComponent, reason
+        )
     }
 }
 
+/// Validates every target before moving anything and moves the application first.
+/// A failure to trash the bundle leaves its associated files in place.
 public struct TrashUninstallExecutor: UninstallExecuting, Sendable {
     private struct ValidatedTarget: Sendable {
         var URL: URL
@@ -514,13 +649,18 @@ public struct TrashUninstallExecutor: UninstallExecuting, Sendable {
 
     private let validator: DestructiveTargetValidator
     private let pathPolicy: UninstallPathPolicy
+    private let moveApplicationToTrash: @Sendable (URL) async throws -> Void
 
     public init(
         validator: DestructiveTargetValidator = DestructiveTargetValidator(),
-        pathPolicy: UninstallPathPolicy = UninstallPathPolicy()
+        pathPolicy: UninstallPathPolicy = UninstallPathPolicy(),
+        moveApplicationToTrash: @escaping @Sendable (URL) async throws -> Void = { url in
+            try FileManager.default.trashItem(at: url, resultingItemURL: nil)
+        }
     ) {
         self.validator = validator
         self.pathPolicy = pathPolicy
+        self.moveApplicationToTrash = moveApplicationToTrash
     }
 
     public func execute(plan: UninstallPlan) async throws {
@@ -528,45 +668,105 @@ public struct TrashUninstallExecutor: UninstallExecuting, Sendable {
             throw SafetyViolation.deniedInSafeTestMode(.uninstall)
         }
 
-        let validatedTargets = try validate(plan: plan)
         let fileManager = FileManager.default
-        // Move optional support files first and the application bundle last. If a
-        // support-file operation fails, the main application remains available.
-        let orderedTargets = Array(validatedTargets.dropFirst()) + Array(validatedTargets.prefix(1))
-        var moved = 0
-        for target in orderedTargets {
-            var current = stat()
-            guard
-                lstat(target.URL.path, &current) == 0,
-                current.st_dev == target.device,
-                current.st_ino == target.inode,
-                (current.st_mode & S_IFMT) != S_IFLNK
-            else {
-                throw SafetyViolation.invalidTarget(scanningFormat(
-                    "uninstall.targetChanged",
-                    "The target changed after confirmation, so removal stopped: %@",
-                    target.URL.path
-                ))
+        try await execute(
+            plan: plan,
+            homeDirectory: fileManager.homeDirectoryForCurrentUser,
+            moveApplicationToTrash: moveApplicationToTrash,
+            moveAssociatedFileToTrash: { url in
+                try fileManager.trashItem(at: url, resultingItemURL: nil)
             }
-            var resultingURL: NSURL?
+        )
+    }
+
+    func execute(
+        plan: UninstallPlan,
+        homeDirectory: URL,
+        moveApplicationToTrash: (URL) async throws -> Void,
+        moveAssociatedFileToTrash: (URL) throws -> Void
+    ) async throws {
+        let targets = try validate(plan: plan, homeDirectory: homeDirectory)
+        for (index, target) in targets.enumerated() {
+            try Self.checkTrashPermission(target.URL, isApplication: index == 0)
+        }
+
+        for (index, target) in targets.enumerated() {
             do {
-                try fileManager.trashItem(at: target.URL, resultingItemURL: &resultingURL)
-                moved += 1
+                try Self.validateUnchanged(target)
+                if index == 0 {
+                    try await moveApplicationToTrash(target.URL)
+                } else {
+                    try moveAssociatedFileToTrash(target.URL)
+                }
+            } catch let failure as UninstallAppMoveUnconfirmed {
+                throw failure
             } catch {
-                if moved > 0 {
-                    throw UninstallExecutionError.partialCompletion(
-                        moved: moved,
-                        total: orderedTargets.count,
-                        reason: error.localizedDescription
+                let permissionDenied = Self.isPermissionDenied(error)
+                if index == 0 {
+                    throw UninstallExecutionError.moveFailed(
+                        targetURL: target.URL, isApplication: true,
+                        permissionDenied: permissionDenied, reason: error.localizedDescription
                     )
                 }
-                throw error
+                throw UninstallExecutionError.cleanupIncomplete(
+                    moved: index, total: targets.count, targetURL: target.URL,
+                    permissionDenied: permissionDenied, reason: error.localizedDescription
+                )
             }
         }
     }
 
-    private func validate(plan: UninstallPlan) throws -> [ValidatedTarget] {
-        let home = FileManager.default.homeDirectoryForCurrentUser.standardizedFileURL
+    private static func checkTrashPermission(_ url: URL, isApplication: Bool) throws {
+        // Moving a directory to the Trash needs permission on its directory entry,
+        // not recursive write permission inside its contents. Trash can still
+        // fail for reasons this filesystem preflight cannot see.
+        guard faccessat(AT_FDCWD, url.path, _DELETE_OK, AT_EACCESS | AT_SYMLINK_NOFOLLOW) != 0 else { return }
+        let code = errno
+        // The system can authorize moving the app even when this process lacks
+        // delete access. Selected data still requires upfront process access.
+        guard code == EROFS || (!isApplication && (code == EACCES || code == EPERM)) else { return }
+        throw UninstallExecutionError.moveFailed(
+            targetURL: url, isApplication: isApplication,
+            permissionDenied: code != EROFS, reason: String(cString: strerror(code))
+        )
+    }
+
+    private static func validateUnchanged(_ target: ValidatedTarget) throws {
+        var current = stat()
+        if lstat(target.URL.path, &current) != 0,
+           let code = POSIXErrorCode(rawValue: errno) {
+            throw POSIXError(code)
+        }
+        guard current.st_dev == target.device,
+              current.st_ino == target.inode,
+              (current.st_mode & S_IFMT) != S_IFLNK,
+              target.URL.resolvingSymlinksInPath().path == target.URL.path else {
+            throw SafetyViolation.invalidTarget(scanningFormat(
+                "uninstall.targetChanged",
+                "The target changed after confirmation, so removal stopped: %@",
+                target.URL.path
+            ))
+        }
+    }
+
+    private static func isPermissionDenied(_ error: any Error) -> Bool {
+        let error = error as NSError
+        switch error.domain {
+        case NSCocoaErrorDomain where error.code == CocoaError.fileWriteNoPermission.rawValue
+            || error.code == CocoaError.fileReadNoPermission.rawValue:
+            return true
+        case NSPOSIXErrorDomain where error.code == Int(EACCES) || error.code == Int(EPERM):
+            return true
+        default:
+            if let underlying = error.userInfo[NSUnderlyingErrorKey] as? NSError {
+                return isPermissionDenied(underlying)
+            }
+            return false
+        }
+    }
+
+    private func validate(plan: UninstallPlan, homeDirectory: URL) throws -> [ValidatedTarget] {
+        let home = homeDirectory.standardizedFileURL
         let applicationURL = plan.application.bundleURL.standardizedFileURL
         let associatedPaths = Set(plan.application.associatedFiles.map {
             URL(fileURLWithPath: $0.path).standardizedFileURL.path
@@ -604,6 +804,13 @@ public struct TrashUninstallExecutor: UninstallExecuting, Sendable {
         for (index, URL) in URLs.enumerated() {
             var metadata = stat()
             guard lstat(URL.path, &metadata) == 0 else {
+                let code = errno
+                if code == EACCES || code == EPERM {
+                    throw UninstallExecutionError.moveFailed(
+                        targetURL: URL, isApplication: index == 0,
+                        permissionDenied: true, reason: String(cString: strerror(code))
+                    )
+                }
                 throw SafetyViolation.invalidTarget(scanningFormat(
                     "uninstall.targetMissing",
                     "The target does not exist: %@",

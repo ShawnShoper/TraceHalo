@@ -60,33 +60,52 @@ enum MonitorWorkspaceLayout {
 
 struct MonitorView: View {
     @Environment(AppModel.self) private var model
+    @Environment(AppNavigationRouter.self) private var navigationRouter
     @Environment(\.locale) private var locale
     @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
     @State private var showsAdvancedStatusConfiguration = false
     @State private var selectedTab: MonitorConfigurationTab = .modules
     @State private var selectedModule: MonitorModule = .cpuAndGPU
     @State private var selectedPreviewSection: MenuBarDashboardSection? = .cpu
+    @State private var showsCompactPreview = false
 
     var body: some View {
+        menuBarWorkspace
+            .calmPage()
+            .navigationTitle(text("菜单栏布局", "Menu Bar Layout"))
+    }
+
+    private var menuBarWorkspace: some View {
         GeometryReader { proxy in
-            let configurationWidth = MonitorWorkspaceLayout.configurationWidth(
-                totalWidth: proxy.size.width
-            )
-
-            HStack(spacing: 0) {
-                configurationPane
-                    .frame(width: configurationWidth)
-
-                Rectangle()
-                    .fill(CalmTheme.hairline)
-                    .frame(width: 1)
-
-                previewPane(availableHeight: proxy.size.height)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+            let minimumWidth = MonitorWorkspaceLayout.minimumConfigurationWidth
+                + MonitorWorkspaceLayout.minimumPreviewWidth + 1
+            if proxy.size.width >= minimumWidth {
+                HStack(spacing: 0) {
+                    configurationPane
+                        .frame(width: MonitorWorkspaceLayout.configurationWidth(totalWidth: proxy.size.width))
+                    Rectangle()
+                        .fill(CalmTheme.hairline)
+                        .frame(width: 1)
+                    previewPane
+                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                }
+            } else {
+                VStack(spacing: 0) {
+                    Picker(text("菜单栏布局", "Menu Bar Layout"), selection: $showsCompactPreview) {
+                        Text(text("配置", "Configure")).tag(false)
+                        Text(text("预览", "Preview")).tag(true)
+                    }
+                    .labelsHidden()
+                    .pickerStyle(.segmented)
+                    .padding(16)
+                    if showsCompactPreview {
+                        previewPane
+                    } else {
+                        configurationPane
+                    }
+                }
             }
         }
-        .calmPage()
-        .navigationTitle(text("监视器", "Monitor"))
         .onAppear {
             normalizePreviewSelection()
         }
@@ -126,7 +145,7 @@ struct MonitorView: View {
     private var monitorHeader: some View {
         HStack(alignment: .top, spacing: 14) {
             VStack(alignment: .leading, spacing: 4) {
-                Text(text("菜单栏监视器", "Menu Bar Monitor"))
+                Text(text("菜单栏布局", "Menu Bar Layout"))
                     .font(.system(size: 20, weight: .semibold))
                 Text(text(
                     "按模块选择想看的内容，菜单栏会立即同步更新",
@@ -139,10 +158,9 @@ struct MonitorView: View {
             Spacer(minLength: 12)
 
             Button {
-                selectedTab = .modules
-                normalizePreviewSelection()
+                navigationRouter.navigate(to: .dashboard)
             } label: {
-                Label(text("配置与预览", "Configure & Preview"), systemImage: "rectangle.3.group")
+                Label(text("实时监控", "Live Monitor"), systemImage: "waveform.path.ecg")
                     .font(.system(size: 12, weight: .semibold))
             }
             .buttonStyle(CalmButtonStyle(prominent: true))
@@ -182,7 +200,7 @@ struct MonitorView: View {
         .accessibilityLabel(text("配置类别", "Configuration category"))
     }
 
-    private func previewPane(availableHeight: CGFloat) -> some View {
+    private var previewPane: some View {
         VStack(alignment: .leading, spacing: 24) {
             HStack(alignment: .top, spacing: 14) {
                 Image(systemName: "eye")
@@ -218,45 +236,50 @@ struct MonitorView: View {
 
             previewSummaryStrip
 
-            GeometryReader { proxy in
-                let previewScale = min(max(proxy.size.width / 552, 0.9), 1.285)
-                let viewportHeight = min(max(availableHeight - 148, 450), 760)
-                let dashboardColumnHeight = min(
-                    max(
-                        viewportHeight / previewScale - (MenuBarDashboardLayout.verticalChrome * 2),
-                        MenuBarDashboardLayout.minimumColumnHeight
-                    ),
-                    MenuBarDashboardLayout.maximumColumnHeight
-                )
-                let scaledWidth = MenuBarDashboardLayout.expandedContentWidth * previewScale
-                let scaledHeight = (
-                    dashboardColumnHeight + (MenuBarDashboardLayout.verticalChrome * 2)
-                ) * previewScale
-                let horizontalInset = max((proxy.size.width - scaledWidth) / 2, 0)
-
-                ScrollView(.vertical, showsIndicators: false) {
-                    MenuBarDashboardView(
-                        initialSection: selectedPreviewSection,
-                        maximumColumnHeightOverride: dashboardColumnHeight,
-                        showsQuickLaunchFooter: false,
-                        resetsSelectionOnPopoverClose: false,
-                        presentationMode: .embeddedPreview,
-                        onSelectionChange: handlePreviewSelection
-                    )
-                    .environment(model)
-                    .scaleEffect(previewScale, anchor: .topLeading)
-                    .frame(width: scaledWidth, height: scaledHeight, alignment: .topLeading)
-                    .padding(.horizontal, horizontalInset)
-                    .padding(.bottom, 4)
-                }
-                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-            }
+            monitoringDashboard(
+                section: selectedPreviewSection,
+                maximumScale: 1.285,
+                onSelectionChange: handlePreviewSelection
+            )
             .padding(.top, -10)
         }
         .padding(.leading, 22)
         .padding(.trailing, 29)
         .padding(.vertical, 18)
         .background(CalmTheme.canvasElevated.opacity(0.26))
+    }
+
+    private func monitoringDashboard(
+        section: MenuBarDashboardSection?,
+        maximumScale: CGFloat,
+        includesDisabledModules: Bool = false,
+        onSelectionChange: ((MenuBarDashboardSection?) -> Void)? = nil
+    ) -> some View {
+        GeometryReader { proxy in
+            let width = MenuBarDashboardLayout.expandedContentWidth
+            let chrome = MenuBarDashboardLayout.verticalChrome * 2
+            let scale = min(max(proxy.size.width / width, 0.1), maximumScale)
+            let columnHeight = min(
+                max(proxy.size.height / scale - chrome, MenuBarDashboardLayout.minimumColumnHeight),
+                MenuBarDashboardLayout.maximumColumnHeight
+            )
+            let scaledWidth = width * scale
+            ScrollView {
+                MenuBarDashboardView(
+                    initialSection: section,
+                    maximumColumnHeightOverride: columnHeight,
+                    showsQuickLaunchFooter: false,
+                    resetsSelectionOnPopoverClose: false,
+                    presentationMode: .embeddedPreview,
+                    includesDisabledModules: includesDisabledModules,
+                    onSelectionChange: onSelectionChange
+                )
+                .environment(model)
+                .scaleEffect(scale, anchor: .topLeading)
+                .frame(width: scaledWidth, height: (columnHeight + chrome) * scale, alignment: .topLeading)
+                .frame(maxWidth: .infinity)
+            }
+        }
     }
 
     private var previewSummaryStrip: some View {
@@ -1009,7 +1032,7 @@ extension MonitorModule {
     func localizedSummary(locale: Locale) -> String {
         switch self {
         case .cpuAndGPU: MenuMonitorLocalization.string("处理器、图形设备型号、负载与高占用进程", english: "Processor and GPU models, load, and top processes", locale: locale)
-        case .memory: MenuMonitorLocalization.string("内存压力、用量、交换空间与进程", english: "Memory pressure, usage, swap, and processes", locale: locale)
+        case .memory: MenuMonitorLocalization.string("内存占用、交换空间与进程", english: "Memory usage, swap, and processes", locale: locale)
         case .storage: MenuMonitorLocalization.string("磁盘容量、可用空间、卷状态与实时 I/O", english: "Capacity, free space, volumes, and live I/O", locale: locale)
         case .sensors: MenuMonitorLocalization.string("风扇转速、CPU 温度与传感器", english: "Fan speeds, CPU temperature, and sensors", locale: locale)
         case .network: MenuMonitorLocalization.string("网络服务、连接状态与实时收发速率", english: "Network services, connections, and live transfer rates", locale: locale)

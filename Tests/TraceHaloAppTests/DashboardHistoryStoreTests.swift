@@ -43,6 +43,94 @@ final class DashboardHistoryStoreTests: XCTestCase {
         XCTAssertEqual(reloaded.samples[0].temperatureCelsius, replacement.temperatureCelsius)
     }
 
+    func testMissingNetworkRatesRoundTripAlongsideNumericLegacyHistory() async throws {
+        let directory = makeTemporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        let day = 20
+        let now = Date(timeIntervalSince1970: Double(day * 86_400 + 125))
+        let legacyDate = now.addingTimeInterval(-61)
+        let legacyArchive = try PropertyListSerialization.data(
+            fromPropertyList: [
+                "version": 1,
+                "samples": [[
+                    "date": legacyDate,
+                    "cpuPercent": 11.0,
+                    "memoryPressurePercent": 37.0,
+                    "networkReceivedBytesPerSecond": 0.0,
+                    "networkSentBytesPerSecond": 0.0
+                ]]
+            ],
+            format: .binary,
+            options: 0
+        )
+        try legacyArchive.write(to: directory.appendingPathComponent("dashboard-history-\(day).plist"))
+        let unknown = DashboardTelemetrySample(
+            date: now,
+            cpuPercent: 20,
+            gpuPercent: nil,
+            memoryPressurePercent: 40,
+            storageUsedPercent: nil,
+            networkReceivedBytesPerSecond: nil,
+            networkSentBytesPerSecond: nil,
+            temperatureCelsius: nil
+        )
+
+        let store = DashboardHistoryStore(directoryURL: directory)
+        await store.record(unknown, retention: .threeDays, now: now)
+        let reloaded = await DashboardHistoryStore(directoryURL: directory).load(retention: .threeDays, now: now)
+
+        XCTAssertEqual(reloaded.samples.map(\.date), [legacyDate, now])
+        XCTAssertEqual(reloaded.samples.map(\.networkBytesPerSecond), [0, nil])
+        XCTAssertEqual(reloaded.samples.last, unknown)
+    }
+
+    func testRestoredMinuteSamplesConnectWithoutBridgingDowntime() async {
+        let directory = makeTemporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let now = Date(timeIntervalSince1970: 20 * 86_400 + 480)
+        let store = DashboardHistoryStore(directoryURL: directory)
+        let offsets: [TimeInterval] = [-480, -420, -360, -60, 0]
+        let samples = offsets.enumerated().map { index, offset in
+            sample(date: now.addingTimeInterval(offset), cpu: Double(10 + index))
+        }
+
+        for sample in samples {
+            await store.record(sample, retention: .threeDays, now: now)
+        }
+        let restored = await DashboardHistoryStore(directoryURL: directory).load(
+            retention: .threeDays,
+            now: now
+        )
+        XCTAssertEqual(restored.samples, samples)
+
+        let points = restored.samples.map { TimelinePoint(date: $0.date, value: $0.cpuPercent) }
+        let segments = DashboardTimelinePolicy.segments(points)
+        XCTAssertEqual(segments.map(\.count), [3, 2])
+    }
+
+    func testMissingMetricSplitsTimelineAndKeepsLastMeasurementAtItsTime() throws {
+        let now = Date(timeIntervalSince1970: 20 * 86_400 + 480)
+        let points = [
+            TimelinePoint(date: now.addingTimeInterval(-240), value: 17),
+            TimelinePoint(date: now.addingTimeInterval(-180), value: 20),
+            TimelinePoint(date: now.addingTimeInterval(-120), value: nil),
+            TimelinePoint(date: now.addingTimeInterval(-60), value: 24),
+            TimelinePoint(date: now.addingTimeInterval(-30), value: 26),
+            TimelinePoint(date: now, value: nil)
+        ]
+
+        let segments = DashboardTimelinePolicy.segments(points)
+        XCTAssertEqual(segments.map(\.count), [2, 2])
+        let lastMeasurement = try XCTUnwrap(segments.last?.last)
+        let x = DashboardTimelinePolicy.normalizedX(
+            date: lastMeasurement.date,
+            latestDate: now,
+            windowSeconds: 15 * 60
+        )
+        XCTAssertEqual(x, 29.0 / 30.0, accuracy: 0.000_001)
+    }
+
     func testRetentionUsesExactCutoffAndRewritesBoundarySegment() async throws {
         let directory = makeTemporaryDirectory()
         defer { try? FileManager.default.removeItem(at: directory) }
