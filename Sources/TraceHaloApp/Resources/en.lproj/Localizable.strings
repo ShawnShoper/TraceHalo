@@ -1010,3 +1010,86 @@
 "拖动时真实菜单栏窗口与右侧预览会立即更新" = "The real menu window and preview update as you drag.";
 
 "macOS 已启用减少透明度，实际显示固定为 100%" = "Reduce Transparency is enabled, so the actual value is fixed at 100%.";
+
+"卸载应用，可选择保留本机数据。" = "Uninstall apps and choose whether to keep local data.";
+
+"大小" = "Size";
+
+"操作" = "Action";
+
+"卸载选项" = "Uninstall Options";
+
+"关闭卸载选项" = "Close Uninstall Options";
+
+"选择应用，查看大小和卸载选项。" = "Select an app to view its size and uninstall options.";
+
+"未找到可卸载的应用" = "No Apps Available to Uninstall";
+
+"可以刷新应用清单。" = "Refresh the application list to check again.";
+
+"卸载" = "Uninstall";
+
+/* Application data review */
+"未列出的位置、个人文稿和云端数据不会清理。查找结果不代表全部历史数据。" = "Unlisted locations, personal documents and cloud data will be kept. Discovery does not cover all historical data.";
+"全选只包含可批量选择的缓存、日志和设置。保存的内容、网站数据及自动化文件需逐项选择。" = "Select All includes eligible caches, logs and settings. Saved content, website data and automation files require individual selection.";
+"将保留 · 共享或归属未确认" = "Kept · shared or unconfirmed ownership";
+"取消批量选择" = "Clear bulk selection";
+"全选缓存和设置" = "Select caches and settings";
+"大小未统计" = "Size not measured";
+"另有 %lld 项" = "%lld more items";
+"将移到废纸篓：" = "Move to Trash:";
+"将保留：" = "Keep:";
+"其他本机数据、个人文稿和云端数据。" = "Other local data, personal documents and cloud data.";
+"所选项目可能包含你保存的内容或登录状态。请确认已有需要的备份。" = "Selected items may contain your saved content or sign-in state. Make sure you have any backups you need.";
+"已检查：应用标识、%lld 个同厂商签名组件、%lld 个脚本文本、%lld 份相关安装收据。" = "Checked: app identifiers, %lld components signed by the same vendor, %lld script texts and %lld related installation receipts.";
+"未能验证应用签名；未启用厂商专用路径和应用群组查找。" = "The app signature could not be verified; vendor-specific locations and app groups were not checked.";
+"部分位置受权限或查找范围限制，可能仍有未发现的文件。" = "Some locations are restricted by permissions or scan limits. Additional files may remain undiscovered.";
+"部分文件夹较大或无法读取，大小暂未统计。" = "Some folders are large or unreadable; their sizes have not been measured.";
+"查找范围与限制" = "Discovery scope and limits";
+"正在查找本机数据与卸载方式…" = "Finding local data and uninstall options…";
+
+/* First-run app-removal access setup */
+"卸载权限" = "Uninstall Permissions";
+"卸载功能准备" = "Prepare App Removal";
+"完成一次配置，后续卸载无需反复打开系统设置。" = "Set this up once to avoid repeated trips to System Settings when uninstalling.";
+"普通监控不需要这些权限，可以稍后在「设置 → 卸载权限」中继续配置。" = "Normal monitoring does not need these permissions. You can finish later in Settings → Uninstall Permissions.";
+"卸载权限已就绪。移除受保护应用时，系统仍可能要求验证管理员身份。" = "App removal access is ready. macOS may still ask you to verify an administrator identity for protected apps.";
+"正在检查权限…" = "Checking access…";
+"重新检查" = "Check Again";
+"稍后设置" = "Set Up Later";
+"启用卸载助手" = "Enable Uninstall Helper";
+"用于将需要管理员权限的应用移到废纸篓。只在你确认卸载后执行。" = "Used to move apps that require administrator permission to the Trash. It acts only after you confirm removal.";
+"卸载助手已启用" = "Uninstall helper enabled";
+"请在「系统设置 → 通用 → 登录项与扩展」批准 TraceHalo 卸载助手。" = "Approve the TraceHalo uninstall helper in System Settings → General → Login Items & Extensions.";
+"前往批准" = "Review Approval";
+"配置文件访问权限" = "Set Up File Access";
+"用于访问废纸篓及受保护的关联文件。完全磁盘访问权限范围较大，可访问其他应用的数据，需由你在系统设置中手动开启。" = "Used to access the Trash and protected related files. Full Disk Access is broad and allows access to other apps’ data. You must enable it manually in System Settings.";
+"已验证废纸篓访问" = "Trash access verified";
+"其他文件仍以实际访问检查结果为准。" = "Access to other files is checked when needed.";
+"先启用卸载助手，再检查文件访问权限。" = "Enable the uninstall helper first, then check file access.";
+"尚不能访问废纸篓" = "Trash access is not available yet";
+"文件访问状态待检查" = "File access has not been verified";
+"在「隐私与安全性 → 完全磁盘访问权限」中启用 TraceHalo。返回后会自动检查；如系统要求，请退出并重新打开应用。" = "Enable TraceHalo in Privacy & Security → Full Disk Access. Access is checked again when you return. Quit and reopen the app if macOS asks you to.";
+"卸载权限尚未就绪" = "App removal access is not ready";
+"请先在权限设置中完成配置。配置完成后，后续卸载无需重复打开系统设置。" = "Finish the permission setup first. Once ready, you will not need repeated trips to System Settings when uninstalling.";
+"权限设置" = "Set Up Access";
+"更新卸载助手" = "Update Uninstall Helper";
+"在「隐私与安全性 → 完全磁盘访问权限」中启用 TraceHalo 和 TraceHaloUninstallHelper（卸载助手）。返回后会自动检查；如系统要求，请退出并重新打开应用。" = "In Privacy & Security → Full Disk Access, enable both TraceHalo and TraceHaloUninstallHelper (the uninstall helper). Access is checked again when you return. Quit and reopen the app if macOS asks you to.";
+"列表中找不到条目？" = "Cannot find an entry?";
+"先启用卸载助手并重新检查。仍找不到时，可在系统设置中点「+」添加相应程序。" = "Enable the uninstall helper and check again first. If an entry is still missing, use the + button in System Settings to add the corresponding program.";
+"在 Finder 中显示 TraceHalo" = "Show TraceHalo in Finder";
+"在 Finder 中显示卸载助手" = "Show Uninstall Helper in Finder";
+
+"全选包含归属未确认、共享数据和保存的内容。请核对下方标记；未勾选的项目会保留。" = "Select All includes unconfirmed ownership, shared data and saved content. Review the labels below. Unchecked items are kept.";
+
+"无法在此清理 · 路径或来源受限" = "Unavailable here · path or source restricted";
+
+"请特别注意所选数据" = "Review the selected data carefully";
+
+"%@（%lld 项）" = "%@ · %lld";
+
+"本机数据将保留。" = "Local data will be kept.";
+
+"将保留（%lld 项候选文件）" = "Kept candidates: %lld";
+
+"仅将应用和已选文件移到废纸篓，不会清空废纸篓。" = "Only the app and selected files move to the Trash. The Trash will not be emptied.";

@@ -123,7 +123,8 @@ public struct DestructiveTargetValidator: Sendable {
 
 /// Pure path policy used before any filesystem metadata is read. It intentionally
 /// allows only application bundles in Applications and associated items in the
-/// current user's non-shared Library subdirectories.
+/// current user's allowed Library subdirectories. Shared data still requires
+/// scan membership and explicit selection in the confirmed plan.
 public struct UninstallPathPolicy: Sendable {
     public init() {}
 
@@ -159,6 +160,7 @@ public struct UninstallPathPolicy: Sendable {
             "Application Support",
             "Caches",
             "Containers",
+            "Group Containers",
             "Preferences",
             "Logs",
             "LaunchAgents",

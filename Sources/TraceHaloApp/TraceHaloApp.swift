@@ -123,6 +123,7 @@ struct TraceHaloApp: App {
             height: lockedCanvas.contentSize.height
         )
         .windowResizability(.contentSize)
+        .traceHaloPrimaryWindowLaunchBehavior()
         .commands {
             CommandGroup(after: .toolbar) {
                 Button(localizedCommand("刷新状态")) {
@@ -172,6 +173,23 @@ struct TraceHaloApp: App {
         appDelegate.navigationRouter
     }
 
+}
+
+private extension Scene {
+    func traceHaloPrimaryWindowLaunchBehavior() -> some Scene {
+        // SceneBuilder has no buildEither for availability fallbacks. Its
+        // public availability erasure keeps macOS 14 on the same scene type.
+        if #available(macOS 15.0, *) {
+            // A previous windowless session must not suppress the only scene
+            // capable of installing the menu-bar open-window action.
+            return SceneBuilder.buildOptional(SceneBuilder.buildLimitedAvailability(
+                self.defaultLaunchBehavior(.presented)
+                    .restorationBehavior(.disabled)
+            ))
+        } else {
+            return SceneBuilder.buildOptional(SceneBuilder.buildLimitedAvailability(self))
+        }
+    }
 }
 
 struct FixedWindowCanvasRoot<Content: View>: View {

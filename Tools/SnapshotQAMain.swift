@@ -34,7 +34,11 @@ struct SnapshotQAMain {
         let outputDirectory = URL(fileURLWithPath: path, isDirectory: true)
         let reportRegressionModel = await makeReportRegressionModel()
         do {
-            if ProcessInfo.processInfo.environment["TRACEHALO_SNAPSHOT_REPORT_ONLY"] == "1" {
+            if ProcessInfo.processInfo.environment["TRACEHALO_SNAPSHOT_PERMISSIONS_ONLY"] == "1" {
+                try await UISnapshotCapture.captureUninstallPermissions(outputDirectory: outputDirectory)
+            } else if ProcessInfo.processInfo.environment["TRACEHALO_SNAPSHOT_DATA_REVIEW_ONLY"] == "1" {
+                try await UISnapshotCapture.captureDataReview(outputDirectory: outputDirectory)
+            } else if ProcessInfo.processInfo.environment["TRACEHALO_SNAPSHOT_REPORT_ONLY"] == "1" {
                 try await UISnapshotCapture.captureReportRegression(
                     model: reportRegressionModel,
                     outputDirectory: outputDirectory
@@ -60,6 +64,26 @@ struct SnapshotQAMain {
         await model.refreshAll()
         await model.preloadToolData()
         await model.loadSelectedApplicationDetails()
+
+        let applicationRows: [(String, String, UInt64)] = [
+            ("Blender", "5.2.1", 950_000_000),
+            ("Docker", "4.37.0", 1_260_000_000),
+            ("Google Chrome", "131.0", 622_000_000),
+            ("微信", "4.0.1", 668_000_000),
+            ("ChatGPT", "1.0", 159_000_000),
+            ("Charles", "5.0.1", 118_000_000),
+            ("爱奇艺", "17.7.5", 61_500_000),
+            ("有道云笔记", "8.2.22", 639_000_000),
+            ("Lark", "7.0", 518_000_000),
+        ]
+        model.applications = applicationRows.enumerated().map { index, row in
+            ApplicationCandidate(
+                name: row.0, bundleIdentifier: "example.snapshot.\(index)", version: row.1,
+                bundleURL: URL(fileURLWithPath: "/SnapshotApplications/\(row.0).app"),
+                sizeBytes: row.2
+            )
+        }
+        model.selectedApplicationID = model.applications.first?.id
 
         var portableSnapshot = SystemSnapshot.fixture
         portableSnapshot.identity.modelName = "MacBook Pro"

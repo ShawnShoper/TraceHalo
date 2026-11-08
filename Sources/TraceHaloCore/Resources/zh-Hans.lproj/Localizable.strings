@@ -218,3 +218,55 @@
 "report.battery.health" = "健康：%@";
 "report.battery.serial" = "序列号：[已隐藏]";
 "report.section.network" = "[网络]";
+
+/* Read-only application data discovery */
+"data.purpose.cache.title" = "缓存";
+"data.purpose.cache.impact" = "临时数据。移除后应用可能需要重新下载或生成，首次使用会变慢。";
+"data.purpose.logs.title" = "运行日志";
+"data.purpose.logs.impact" = "用于排查问题的记录。移除后将无法再用这些记录诊断历史问题。";
+"data.purpose.settings.title" = "应用设置";
+"data.purpose.settings.impact" = "可能包含偏好设置。移除后重装可能恢复默认设置。";
+"data.purpose.savedState.title" = "窗口和恢复记录";
+"data.purpose.savedState.impact" = "可能包含上次打开的窗口和恢复状态。移除后可能无法恢复上次会话。";
+"data.purpose.websiteData.title" = "网站和登录数据";
+"data.purpose.websiteData.impact" = "可能包含 Cookie、登录状态和离线网页内容。移除后可能需要重新登录。";
+"data.purpose.userData.title" = "保存的内容和应用数据";
+"data.purpose.userData.impact" = "可能包含你保存的内容、账户配置或下载文件。未读取具体内容，移除前请确认备份。";
+"data.purpose.automation.title" = "自动化文件";
+"data.purpose.automation.impact" = "可能包含脚本和工作流。移除后相关自动化可能无法使用。";
+"data.purpose.background.title" = "后台或扩展组件";
+"data.purpose.background.impact" = "可能用于后台启动或扩展功能。厂商卸载器更适合处理需要系统注销的组件。";
+"data.purpose.shared.title" = "共享应用数据";
+"data.purpose.shared.impact" = "可能供同一厂商的多个应用或扩展共同使用。";
+"data.purpose.unknown.title" = "用途未确认的文件";
+"data.purpose.unknown.impact" = "仅找到路径线索，未确认文件用途和归属。";
+"data.retain.shared" = "可能被其他应用、其他版本或扩展共用。";
+"data.retain.uncertain" = "仅有名称或路径引用线索，尚不能确定归属。";
+"data.retain.outsideScope" = "保留：超出此处的清理范围，请在 Finder 中检查或使用厂商卸载器。";
+"data.retain.symbolicLink" = "保留：该路径包含符号链接，实际位置可能属于其他应用。";
+"data.evidence.component" = "来自同厂商签名组件的应用标识：";
+"data.evidence.group" = "应用签名声明使用此共享群组：";
+"data.evidence.vendor" = "应用标识与签名厂商匹配，按公开目录规则找到：";
+"data.evidence.background" = "后台启动记录直接引用此应用内的程序：";
+"data.evidence.script" = "应用内脚本文本包含此固定路径；未执行脚本：";
+"data.evidence.receipt" = "同一安装收据包含该应用和此组件；不代表独占使用：";
+"uninstall.overlappingAssociation" = "卸载选择中包含相互重叠的数据目录，请重新检查：%@";
+"data.purpose.browserProfile.title" = "浏览器资料";
+"data.purpose.browserProfile.impact" = "可能包含书签、浏览记录、Cookie 和登录状态。未同步或未备份的内容移除后可能无法恢复。";
+"data.evidence.otherApp" = "其他已安装应用声明使用此数据位置：%@";
+
+"data.warning.uncertain.title" = "归属未确认";
+
+"data.warning.uncertain.impact" = "仅根据名称或路径线索推测，请确认归属后再清理。";
+
+"data.warning.shared.title" = "共享数据";
+
+"data.warning.shared.impact" = "其他应用、版本或扩展也可能使用它，清理可能影响它们。";
+
+"data.warning.savedContent.title" = "保存的内容";
+
+"data.warning.savedContent.impact" = "可能包含个人文件、账号配置或登录状态；清理前请确认备份。";
+
+"data.retain.protectedContents" = "保留：此文件夹包含不能在此清理的候选项；可单独选择其他子项。";
+
+"uninstall.protectedDescendant" = "所选文件夹包含受保护的候选项，请单独选择其他子项：%@";

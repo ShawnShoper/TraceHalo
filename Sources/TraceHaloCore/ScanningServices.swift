@@ -288,6 +288,7 @@ public struct ApplicationScanner: ApplicationProviding, Sendable {
             }
 
             while let URL = enumerator.nextObject() as? URL {
+                try Task.checkCancellation()
                 guard URL.pathExtension.lowercased() == "app" else { continue }
                 let values = try? URL.resourceValues(forKeys: Set(keys))
                 guard values?.isDirectory == true || values?.isApplication == true || values?.isPackage == true else {
@@ -312,9 +313,10 @@ public struct ApplicationScanner: ApplicationProviding, Sendable {
     }
 
     public func enrichedApplication(_ application: ApplicationCandidate) async -> ApplicationCandidate {
-        await Task.detached(priority: .utility) {
+        let task = Task.detached(priority: .utility) {
             enrichedCandidate(for: application.bundleURL) ?? application
-        }.value
+        }
+        return await withTaskCancellationHandler { await task.value } onCancel: { task.cancel() }
     }
 
     @concurrent
@@ -363,6 +365,16 @@ public struct ApplicationScanner: ApplicationProviding, Sendable {
     }
 
     public func scanAssociatedFiles(for application: ApplicationCandidate) -> [AssociatedFile] {
+        discoverData(for: application).files
+    }
+
+    private func discoverData(for application: ApplicationCandidate) -> ApplicationDataDiscovery.Result {
+        let inventory = (try? scanApplications()) ?? []
+        return ApplicationDataDiscovery(home: homeDirectory, applications: inventory)
+            .discover(for: application, base: baseAssociatedFiles(for: application))
+    }
+
+    private func baseAssociatedFiles(for application: ApplicationCandidate) -> [AssociatedFile] {
         let fileManager = FileManager.default
         let library = homeDirectory.appendingPathComponent("Library", isDirectory: true)
         let bundleIdentifier = sanitizedBundleIdentifier(application.bundleIdentifier)
@@ -479,17 +491,16 @@ public struct ApplicationScanner: ApplicationProviding, Sendable {
             sizeBytes: nil
         )
         if includeDetails {
-            candidate.associatedFiles = scanAssociatedFiles(for: candidate)
+            let discovery = discoverData(for: candidate)
+            candidate.associatedFiles = discovery.files
+            candidate.dataDiscovery = discovery.summary
             candidate.vendorUninstaller = VendorUninstallerScanner.find(for: candidate)
         }
         return candidate
     }
 
     private func sanitizedBundleIdentifier(_ value: String?) -> String? {
-        guard let value, !value.isEmpty, !value.contains("/") else { return nil }
-        let allowed = CharacterSet.alphanumerics.union(CharacterSet(charactersIn: ".-_"))
-        guard value.unicodeScalars.allSatisfy(allowed.contains) else { return nil }
-        return value
+        ApplicationDataDiscovery.safeIdentifier(value)
     }
 
     private func addMatchingChildren(
@@ -768,18 +779,28 @@ public struct TrashUninstallExecutor: UninstallExecuting, Sendable {
     private func validate(plan: UninstallPlan, homeDirectory: URL) throws -> [ValidatedTarget] {
         let home = homeDirectory.standardizedFileURL
         let applicationURL = plan.application.bundleURL.standardizedFileURL
-        let associatedPaths = Set(plan.application.associatedFiles.map {
-            URL(fileURLWithPath: $0.path).standardizedFileURL.path
-        })
+        let scannedFiles = Dictionary(plan.application.associatedFiles.map {
+            (URL(fileURLWithPath: $0.path).standardizedFileURL.path, $0)
+        }, uniquingKeysWith: { first, _ in first })
 
         var URLs = [applicationURL]
         var seen = Set([applicationURL.path])
         for file in plan.selectedFiles {
             let URL = URL(fileURLWithPath: file.path).standardizedFileURL
-            guard associatedPaths.contains(URL.path) else {
+            guard let scanned = scannedFiles[URL.path], scanned == file,
+                  scanned.isEligibleForCleanup else {
                 throw SafetyViolation.invalidTarget(scanningFormat(
                     "uninstall.unscannedAssociation",
                     "The uninstall plan contains an associated file that was not confirmed by the scan: %@",
+                    file.path
+                ))
+            }
+            guard !scannedFiles.values.contains(where: {
+                $0.path.hasPrefix(URL.path + "/") && !$0.isEligibleForCleanup
+            }) else {
+                throw SafetyViolation.invalidTarget(scanningFormat(
+                    "uninstall.protectedDescendant",
+                    "The selected folder contains a protected finding. Choose its other children individually: %@",
                     file.path
                 ))
             }
@@ -791,6 +812,16 @@ public struct TrashUninstallExecutor: UninstallExecuting, Sendable {
                 ))
             }
             URLs.append(URL)
+        }
+
+        for target in URLs.dropFirst() where URLs.dropFirst().contains(where: {
+            $0.path != target.path && target.path.hasPrefix($0.path + "/")
+        }) {
+            throw SafetyViolation.invalidTarget(scanningFormat(
+                "uninstall.overlappingAssociation",
+                "The uninstall plan contains overlapping data folders. Review the selection: %@",
+                target.path
+            ))
         }
 
         try validator.validate(paths: URLs.map(\.path), homeDirectory: home.path)

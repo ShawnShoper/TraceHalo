@@ -71,6 +71,10 @@ enum PrivilegedUninstallClient {
         RuntimeSafetyMode.current == .live && service.status == .requiresApproval
     }
 
+    static var needsHelperUpdate: Bool {
+        isEnabled && UserDefaults.standard.integer(forKey: helperRevisionKey) != helperRevision
+    }
+
     static func prepareHelper() async throws -> Bool {
         guard RuntimeSafetyMode.current == .live else {
             throw SafetyViolation.deniedInSafeTestMode(.uninstall)

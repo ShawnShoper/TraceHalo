@@ -92,17 +92,18 @@ final class SafetyTests: XCTestCase {
                 applicationPath: "/Applications/Example.app",
                 associatedPaths: [
                     "/Users/tracehalo-test/Library/Caches/com.example.app",
-                    "/Users/tracehalo-test/Library/Preferences/com.example.app.plist"
+                    "/Users/tracehalo-test/Library/Preferences/com.example.app.plist",
+                    "/Users/tracehalo-test/Library/Group Containers/group.com.example.app"
                 ],
                 homeDirectory: testHome
             )
         )
     }
 
-    func testUninstallPolicyRejectsSystemAndSharedContainers() {
+    func testUninstallPolicyRejectsSystemAndLibraryRoots() {
         for path in [
             "/Library/Application Support/com.example.app",
-            "/Users/tracehalo-test/Library/Group Containers/group.com.example.app",
+            "/Users/tracehalo-test/Library/Group Containers",
             "/Users/tracehalo-test/Library/Caches"
         ] {
             XCTAssertThrowsError(
@@ -332,12 +333,105 @@ final class SafetyTests: XCTestCase {
             try manager.createDirectory(at: directory, withIntermediateDirectories: true)
             let file = directory.appendingPathComponent("com.example.app")
             try Data().write(to: file)
-            return AssociatedFile(path: file.path, category: .other, ownershipReason: "test fixture")
+            return AssociatedFile(path: file.path, category: .other, ownershipReason: "test fixture",
+                                  matchBasis: .exactBundleIdentifier("com.example.app"))
         }
         let application = ApplicationCandidate(
             name: "Example", bundleIdentifier: "com.example.app", version: "1", bundleURL: app,
             associatedFiles: files
         )
         try await test(home, UninstallPlan(application: application, selectedFiles: Array(files.prefix(2))))
+    }
+
+    func testExecutorRejectsProtectedAndForgedFindingsBeforeMovingTheApp() async throws {
+        try await withUninstallFixture { home, original in
+            for forged in [false, true] {
+                var plan = original
+                plan.application.associatedFiles[0].retentionReason = .outsideScope
+                if !forged { plan.selectedFiles[0] = plan.application.associatedFiles[0] }
+                do {
+                    try await TrashUninstallExecutor().execute(plan: plan, homeDirectory: home,
+                        moveApplicationToTrash: { _ in XCTFail("The app must remain in place") },
+                        moveAssociatedFileToTrash: { _ in XCTFail("No data may be removed") })
+                    XCTFail("Protected data must be rejected, including a forged eligibility flag")
+                } catch is SafetyViolation { }
+            }
+        }
+    }
+
+    func testExecutorRejectsOverlappingSelectedFoldersBeforeMovingAnything() async throws {
+        try await withUninstallFixture { home, original in
+            let parent = home.appendingPathComponent("Library/Application Support/com.example.app")
+            let child = parent.appendingPathComponent("data")
+            try FileManager.default.createDirectory(at: child, withIntermediateDirectories: true)
+            let files = [parent, child].map {
+                AssociatedFile(path: $0.path, category: .support, ownershipReason: "fixture",
+                    matchBasis: .exactBundleIdentifier("com.example.app"))
+            }
+            var application = original.application
+            application.associatedFiles = files
+            do {
+                try await TrashUninstallExecutor().execute(
+                    plan: UninstallPlan(application: application, selectedFiles: files), homeDirectory: home,
+                    moveApplicationToTrash: { _ in XCTFail("No app may move before the plan is valid") },
+                    moveAssociatedFileToTrash: { _ in XCTFail("Overlapping data must not be moved twice") })
+                XCTFail("Overlapping targets must be rejected")
+            } catch is SafetyViolation { }
+        }
+    }
+
+    func testExecutorAcceptsExplicitlySelectedUnconfirmedAndSharedScanFindings() async throws {
+        try await withUninstallFixture { home, original in
+            var application = original.application
+            var named = original.selectedFiles[0]
+            named.matchBasis = .applicationName("Example")
+            named.retentionReason = .uncertain
+            let groupURL = home.appendingPathComponent("Library/Group Containers/team.shared")
+            try FileManager.default.createDirectory(at: groupURL, withIntermediateDirectories: true)
+            let shared = AssociatedFile(path: groupURL.path, category: .groupContainer,
+                ownershipReason: "signed group", matchBasis: .appGroup("team.shared"), retentionReason: .shared)
+            application.associatedFiles = [named, shared, original.application.associatedFiles[2]]
+            let plan = UninstallPlan(application: application, selectedFiles: [named, shared])
+            var attempted: [String] = []
+            try await TrashUninstallExecutor().execute(plan: plan, homeDirectory: home,
+                moveApplicationToTrash: { attempted.append($0.path) },
+                moveAssociatedFileToTrash: { attempted.append($0.path) })
+            XCTAssertEqual(attempted, plan.allPaths)
+            XCTAssertFalse(attempted.contains(original.application.associatedFiles[2].path))
+        }
+    }
+
+    func testExecutorRejectsRemovingWarningMetadataFromASelectedFinding() async throws {
+        try await withUninstallFixture { home, original in
+            var plan = original
+            plan.application.associatedFiles[0].retentionReason = .shared
+            do {
+                try await TrashUninstallExecutor().execute(plan: plan, homeDirectory: home,
+                    moveApplicationToTrash: { _ in XCTFail("Changed scan metadata must stop execution") },
+                    moveAssociatedFileToTrash: { _ in XCTFail("No data may move") })
+                XCTFail("Stripping a shared-data warning must be rejected")
+            } catch is SafetyViolation { }
+        }
+    }
+
+    func testExecutorRejectsParentCoveringAHardProtectedScanFinding() async throws {
+        try await withUninstallFixture { home, original in
+            let parent = home.appendingPathComponent("Library/Application Support/Example")
+            let child = parent.appendingPathComponent("protected")
+            try FileManager.default.createDirectory(at: child, withIntermediateDirectories: true)
+            let parentFile = AssociatedFile(path: parent.path, category: .support, ownershipReason: "name",
+                matchBasis: .applicationName("Example"))
+            let childFile = AssociatedFile(path: child.path, category: .helper, ownershipReason: "receipt",
+                matchBasis: .installationReceipt("example"), retentionReason: .outsideScope)
+            var application = original.application
+            application.associatedFiles = [parentFile, childFile]
+            do {
+                try await TrashUninstallExecutor().execute(
+                    plan: UninstallPlan(application: application, selectedFiles: [parentFile]), homeDirectory: home,
+                    moveApplicationToTrash: { _ in XCTFail("The parent cannot bypass a protected child") },
+                    moveAssociatedFileToTrash: { _ in XCTFail("No data may move") })
+                XCTFail("A protected child must not be removed through its parent")
+            } catch is SafetyViolation { }
+        }
     }
 }

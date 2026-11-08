@@ -6,6 +6,25 @@ import XCTest
 
 final class MainWindowAndSidebarLayoutTests: XCTestCase {
     @MainActor
+    func testEarlyActivationIsReplayedWhenSceneBridgeBecomesAvailable() {
+        let application = NSApplication.shared
+        let previousPolicy = application.activationPolicy()
+        defer { application.setActivationPolicy(previousPolicy) }
+        let router = AppNavigationRouter(destination: .report)
+        let controller = MenuBarStatusItemController(model: AppModel(), navigationRouter: router)
+        var openCount = 0
+
+        controller.activateMainWindowPreservingDestination()
+        controller.activateMainWindowPreservingDestination()
+        controller.setOpenMainWindowAction { openCount += 1 }
+
+        XCTAssertEqual(openCount, 1)
+        XCTAssertEqual(router.destination, .report)
+        controller.setOpenMainWindowAction { openCount += 1 }
+        XCTAssertEqual(openCount, 1)
+    }
+
+    @MainActor
     func testMenuBarRestoresHiddenWindowWithSwiftUISceneIdentifier() {
         let application = NSApplication.shared
         let previousPolicy = application.activationPolicy()
@@ -704,8 +723,8 @@ final class MainWindowAndSidebarLayoutTests: XCTestCase {
         let expectations: [(URL, String, String, String)] = [
             (
                 packageRoot.appendingPathComponent("Resources/Info.plist"),
-                "0.2.0",
-                "26",
+                "0.2.1",
+                "39",
                 "Beta"
             ),
             (

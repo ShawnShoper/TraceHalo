@@ -63,7 +63,7 @@ final class ToolLoadingStateRenderingTests: XCTestCase {
     }
 
     @MainActor
-    func testApplicationFirstLoadAndFailureRenderBothColumnsOnOneCanvas() async throws {
+    func testApplicationTableFirstLoadAndFailureRenderOnOneCanvas() async throws {
         let size = CGSize(width: 1_180, height: 760)
         let loadingModel = AppModel(
             applicationProvider: DelayedApplicationProvider(delay: .seconds(30))

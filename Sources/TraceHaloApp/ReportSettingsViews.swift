@@ -395,6 +395,7 @@ enum SettingsHistoryRetentionPresentation {
 }
 
 private enum SettingsPresentedSheet: String, Identifiable {
+    case uninstallPermissions
     case diagnostics
     case advanced
     case about
@@ -460,6 +461,8 @@ struct SettingsView: View {
         .sheet(item: $presentedSheet) { sheet in
             Group {
                 switch sheet {
+                case .uninstallPermissions:
+                    UninstallPermissionSetupView()
                 case .diagnostics:
                     SettingsDiagnosticsSheet()
                 case .advanced:
@@ -745,6 +748,13 @@ struct SettingsView: View {
                             )
                         )
                     }
+                )
+                SettingsRowDivider()
+                settingsSheetButton(
+                    .uninstallPermissions,
+                    symbol: "lock.shield",
+                    title: localized("卸载权限"),
+                    minimumHeight: 34
                 )
                 SettingsRowDivider()
                 settingsSheetButton(
@@ -1467,8 +1477,8 @@ struct SettingsAboutBuildMetadata: Equatable {
     }
 
     static let snapshotFixture = SettingsAboutBuildMetadata(
-        version: "0.2.0",
-        build: "26",
+        version: "0.2.1",
+        build: "39",
         releaseChannel: "Beta"
     )
 
