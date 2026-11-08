@@ -24,6 +24,7 @@ final class MenuBarStatusItemController: NSObject, NSPopoverDelegate {
     private var statusHostingView: PassthroughHostingView?
     private var popoverHostingView: MenuBarPopoverHostingView?
     private var openMainWindowAction: (() -> Void)?
+    private var hasPendingMainWindowActivation = false
     private var isStarted = false
     private var observationGeneration = 0
     private var popoverPresentation = MenuBarPopoverPresentation()
@@ -93,6 +94,10 @@ final class MenuBarStatusItemController: NSObject, NSPopoverDelegate {
 
     func setOpenMainWindowAction(_ action: @escaping () -> Void) {
         openMainWindowAction = action
+        if hasPendingMainWindowActivation {
+            hasPendingMainWindowActivation = false
+            activateMainWindowPreservingDestination()
+        }
     }
 
     /// Ensures Command-Q cannot leave TraceHalo running without any way back
@@ -558,8 +563,12 @@ final class MenuBarStatusItemController: NSObject, NSPopoverDelegate {
                 window.deminiaturize(nil)
             }
             window.makeKeyAndOrderFront(nil)
+        } else if let openMainWindowAction {
+            openMainWindowAction()
         } else {
-            openMainWindowAction?()
+            // Finder/Dock activation can precede the SwiftUI view bridge.
+            // Preserve the request rather than silently dropping it.
+            hasPendingMainWindowActivation = true
         }
         application.activate(ignoringOtherApps: true)
     }

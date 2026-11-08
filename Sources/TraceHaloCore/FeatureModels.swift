@@ -819,6 +819,12 @@ public enum AssociatedFileMatchBasis: Equatable, Sendable {
     case exactBundleIdentifier(String)
     case bundleIdentifierPrefix(String)
     case applicationName(String)
+    case signedComponent(String)
+    case verifiedLocation(String)
+    case appGroup(String)
+    case installationReceipt(String)
+    case scriptReference(String)
+    case backgroundExecutable(String)
     case unspecified
 }
 
@@ -830,6 +836,47 @@ public struct AssociatedFile: Identifiable, Equatable, Sendable {
     public var ownershipReason: String
     public var matchBasis: AssociatedFileMatchBasis
     public var isSelected: Bool
+    public var dataPurpose: ApplicationDataPurpose
+    public var retentionReason: ApplicationDataRetentionReason?
+    public var additionalEvidence: [String]
+
+    /// Uncertain/shared ownership is a review warning, not a selection veto.
+    /// Scope restrictions and unsafe paths stay blocked independently of evidence.
+    public var isEligibleForCleanup: Bool {
+        retentionReason?.blocksCleanup != true
+    }
+
+    public var isEligibleForBulkSelection: Bool {
+        isEligibleForCleanup
+    }
+
+    public var hasUncertainOwnership: Bool {
+        if retentionReason == .uncertain { return true }
+        switch matchBasis {
+        case .applicationName, .scriptReference, .unspecified, .installationReceipt: return true
+        case .bundleIdentifierPrefix(let identifier):
+            // Only an exact domain followed by a host UUID has strong evidence.
+            // Longer domains remain selectable, labeled as unconfirmed.
+            let name = URL(fileURLWithPath: path).lastPathComponent
+            let prefix = identifier + "."
+            guard category == .preference, name.hasPrefix(prefix), name.hasSuffix(".plist") else { return true }
+            let suffix = name.dropFirst(prefix.count).dropLast(".plist".count)
+            return UUID(uuidString: String(suffix)) == nil
+        default: return false
+        }
+    }
+
+    public var cleanupWarnings: [ApplicationDataCleanupWarning] {
+        var warnings: [ApplicationDataCleanupWarning] = []
+        if hasUncertainOwnership { warnings.append(.uncertain) }
+        if retentionReason == .shared || category == .groupContainer || dataPurpose == .shared {
+            warnings.append(.shared)
+        }
+        if [.userData, .browserProfile, .websiteData, .automation].contains(dataPurpose) {
+            warnings.append(.savedContent)
+        }
+        return warnings
+    }
 
     public init(
         path: String,
@@ -837,7 +884,10 @@ public struct AssociatedFile: Identifiable, Equatable, Sendable {
         sizeBytes: UInt64? = nil,
         ownershipReason: String,
         matchBasis: AssociatedFileMatchBasis = .unspecified,
-        isSelected: Bool = false
+        isSelected: Bool = false,
+        dataPurpose: ApplicationDataPurpose? = nil,
+        retentionReason: ApplicationDataRetentionReason? = nil,
+        additionalEvidence: [String] = []
     ) {
         self.path = path
         self.category = category
@@ -845,6 +895,9 @@ public struct AssociatedFile: Identifiable, Equatable, Sendable {
         self.ownershipReason = ownershipReason
         self.matchBasis = matchBasis
         self.isSelected = isSelected
+        self.dataPurpose = dataPurpose ?? ApplicationDataPurpose.infer(category: category, path: path)
+        self.retentionReason = retentionReason
+        self.additionalEvidence = additionalEvidence
     }
 }
 
@@ -857,6 +910,7 @@ public struct ApplicationCandidate: Identifiable, Equatable, Sendable {
     public var sizeBytes: UInt64?
     public var associatedFiles: [AssociatedFile]
     public var vendorUninstaller: VendorUninstaller?
+    public var dataDiscovery: ApplicationDataDiscoverySummary?
 
     public init(
         name: String,
@@ -865,7 +919,8 @@ public struct ApplicationCandidate: Identifiable, Equatable, Sendable {
         bundleURL: URL,
         sizeBytes: UInt64? = nil,
         associatedFiles: [AssociatedFile] = [],
-        vendorUninstaller: VendorUninstaller? = nil
+        vendorUninstaller: VendorUninstaller? = nil,
+        dataDiscovery: ApplicationDataDiscoverySummary? = nil
     ) {
         self.name = name
         self.bundleIdentifier = bundleIdentifier
@@ -874,6 +929,7 @@ public struct ApplicationCandidate: Identifiable, Equatable, Sendable {
         self.sizeBytes = sizeBytes
         self.associatedFiles = associatedFiles
         self.vendorUninstaller = vendorUninstaller
+        self.dataDiscovery = dataDiscovery
     }
 }
 
@@ -888,6 +944,19 @@ public struct UninstallPlan: Equatable, Sendable {
 
     public var totalItemCount: Int { 1 + selectedFiles.count }
     public var allPaths: [String] { [application.bundleURL.path] + selectedFiles.map(\.path) }
+
+    /// A selected directory also covers scanned children; list them as removed,
+    /// never as retained, even though the executor moves the parent only once.
+    public var coveredAssociatedFiles: [AssociatedFile] {
+        application.associatedFiles.filter { file in
+            selectedFiles.contains { file.path == $0.path || file.path.hasPrefix($0.path + "/") }
+        }
+    }
+
+    public var retainedAssociatedFiles: [AssociatedFile] {
+        let coveredIDs = Set(coveredAssociatedFiles.map(\.id))
+        return application.associatedFiles.filter { !coveredIDs.contains($0.id) }
+    }
 
     /// Returns an exact total only when every included item has a known size.
     /// Unknown or overflowing values must stay unknown rather than becoming 0.

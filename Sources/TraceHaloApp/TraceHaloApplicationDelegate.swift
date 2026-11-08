@@ -108,6 +108,9 @@ final class TraceHaloApplicationDelegate: NSObject, NSApplicationDelegate {
         preferencesController.start()
         model.startMonitoring()
         menuBarController.start()
+        DispatchQueue.main.async { [weak self] in
+            self?.menuBarController.activateMainWindowPreservingDestination()
+        }
     }
 
     func applicationWillTerminate(_ notification: Notification) {

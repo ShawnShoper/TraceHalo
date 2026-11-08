@@ -547,12 +547,13 @@ struct UninstallerView: View {
     @Environment(AppModel.self) private var model
     @Environment(\.locale) private var locale
     @State private var searchText = ""
+    @State private var isShowingApplicationReview = false
     @State private var applicationIcons: [String: NSImage] = [:]
     @State private var removalApplicationID: String?
     @State private var pendingPrivilegedRemoval: PrivilegedUninstallTarget?
     @State private var privilegedRemovalAuthorization: PrivilegedUninstallAuthorization?
-    @State private var isShowingUninstallHelperApproval = false
-    @State private var isShowingTrashAccessAlert = false
+    @State private var isShowingPermissionSetup = false
+    @State private var permissions = UninstallPermissionController.shared
     @State private var isRequestingRemovalAuthorization = false
     @State private var completedRemoval: UninstallPlan?
     @State private var removalFailure: UninstallExecutionError?
@@ -561,31 +562,17 @@ struct UninstallerView: View {
     @State private var vendorUninstallerError: String?
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 18) {
-            PageHeader(
-                title: localized("应用管理"),
-                subtitle: localized("从这台 Mac 卸载不再使用的应用"),
-                symbol: "app.badge.checkmark"
-            )
-
-            HStack(alignment: .top, spacing: 16) {
-                applicationList
-                    .frame(idealWidth: 280, maxWidth: 300, maxHeight: .infinity)
-                    .layoutPriority(1)
-                    .calmCard(padding: 0)
-                    .disabled(model.isUninstallingApplication || isRequestingRemovalAuthorization)
-                applicationDetail
-                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-            }
+        VStack(alignment: .leading, spacing: 20) {
+            applicationToolbar
+            applicationList
+                .disabled(model.isUninstallingApplication || isRequestingRemovalAuthorization)
         }
         .padding(24)
-        .frame(maxWidth: 1080)
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-        .calmPage()
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .background(CalmTheme.surface)
+        .foregroundStyle(CalmTheme.primaryText)
         .navigationTitle(localized("应用管理"))
-        .task(id: model.selectedApplicationID) {
-            await model.loadSelectedApplicationDetails()
-        }
+        .task { await model.loadApplicationsIfNeeded() }
         .task(id: model.applicationsLastLoadedAt, priority: .utility) {
             await model.loadApplicationSizes()
         }
@@ -601,27 +588,104 @@ struct UninstallerView: View {
             }
         }
         .onDisappear { clearRemovalPreparation() }
-        .alert(localized("需要管理员授权"), isPresented: $isShowingUninstallHelperApproval) {
-            Button(localized("申请权限…")) { continuePrivilegedRemoval() }
-            Button(localized("取消"), role: .cancel) { clearRemovalPreparation() }
-        } message: {
-            Text(localized("这个应用归管理员所有。首次使用时，请在系统设置批准 TraceHalo 卸载助手，再验证管理员身份。授权后会显示卸载确认。"))
+        .sheet(isPresented: $isShowingApplicationReview, onDismiss: resetApplicationReview) {
+            applicationReviewSheet
+                .environment(\.locale, locale)
         }
-        .alert(localized("无法访问废纸篓"), isPresented: $isShowingTrashAccessAlert) {
-            Button(localized("打开系统设置")) {
-                if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_AllFiles") {
-                    NSWorkspace.shared.open(url)
-                }
+    }
+
+    private var applicationToolbar: some View {
+        HStack(alignment: .center, spacing: 24) {
+            VStack(alignment: .leading, spacing: 6) {
+                Text(localized("应用管理"))
+                    .font(.system(size: 28, weight: .bold))
+                    .accessibilityAddTraits(.isHeader)
+                Text(localized("卸载应用，可选择保留本机数据。"))
+                    .font(.system(size: 15))
+                    .foregroundStyle(CalmTheme.secondaryText)
             }
-            Button(localized("在 Finder 中显示")) {
-                if let application = visibleSelectedApplication,
-                   pendingPrivilegedRemoval?.path == application.bundleURL.standardizedFileURL.path {
-                    NSWorkspace.shared.activateFileViewerSelecting([application.bundleURL])
-                }
+            Spacer(minLength: 12)
+            applicationSearch
+                .frame(minWidth: 200, idealWidth: 280, maxWidth: 320)
+            Button {
+                Task { await refreshApplications() }
+            } label: {
+                Image(systemName: "arrow.clockwise")
+                    .font(.system(size: 16))
+                    .frame(width: 34, height: 34)
             }
-            Button(localized("取消"), role: .cancel) { clearRemovalPreparation() }
-        } message: {
-            Text(localized("要在 TraceHalo 内移到废纸篓，请在「系统设置 → 隐私与安全性 → 完全磁盘访问权限」启用 TraceHalo，再返回点「继续授权」。也可以在 Finder 中选中应用，按 ⌘⌫ 移到废纸篓。"))
+            .buttonStyle(.plain)
+            .foregroundStyle(CalmTheme.secondaryText)
+            .disabled(model.isLoadingApplications)
+            .help(localized("在后台重新读取应用清单"))
+            .accessibilityLabel(localized("刷新"))
+        }
+    }
+
+    private var applicationSearch: some View {
+        HStack(spacing: 8) {
+            Image(systemName: "magnifyingglass")
+                .foregroundStyle(CalmTheme.secondaryText)
+            TextField(localized("搜索应用"), text: $searchText)
+                .textFieldStyle(.plain)
+            if !searchText.isEmpty {
+                Button { searchText = "" } label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .foregroundStyle(CalmTheme.secondaryText)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel(localized("清除应用搜索"))
+            }
+        }
+        .padding(.horizontal, 12)
+        .frame(height: 36)
+        .background(CalmTheme.surface)
+        .overlay {
+            RoundedRectangle(cornerRadius: 8)
+                .strokeBorder(CalmTheme.hairline)
+        }
+    }
+
+    private var applicationReviewSheet: some View {
+        VStack(spacing: 12) {
+            HStack {
+                Text(localized("卸载选项"))
+                    .font(.headline)
+                Spacer()
+                Button(action: closeApplicationReview) {
+                    Image(systemName: "xmark")
+                        .frame(width: 28, height: 28)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel(localized("关闭卸载选项"))
+                .keyboardShortcut(.cancelAction)
+                .disabled(model.isUninstallingApplication || isRequestingRemovalAuthorization)
+            }
+            .padding(.horizontal, 20)
+            .padding(.top, 16)
+            applicationDetail
+                .padding(.horizontal, 16)
+                .padding(.bottom, 16)
+        }
+        .frame(width: 720, height: 640)
+        .calmPage()
+        .interactiveDismissDisabled(model.isUninstallingApplication || isRequestingRemovalAuthorization)
+        .task(id: model.selectedApplicationID) {
+            await model.loadSelectedApplicationDetails()
+            guard !Task.isCancelled, isShowingApplicationReview,
+                  let application = visibleSelectedApplication,
+                  application.vendorUninstaller == nil else { return }
+            beginRemoval(application)
+        }
+        .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
+            guard pendingPrivilegedRemoval != nil else { return }
+            Task { await permissions.refresh() }
+        }
+        .sheet(isPresented: $isShowingPermissionSetup, onDismiss: {
+            Task { await permissions.refresh() }
+        }) {
+            UninstallPermissionSetupView(controller: permissions)
+                .environment(\.locale, locale)
         }
         .alert(localized("卸载未完成"), isPresented: Binding(
             get: { removalError != nil },
@@ -641,32 +705,55 @@ struct UninstallerView: View {
         }
     }
 
+    private func openApplicationReview(_ application: ApplicationCandidate) {
+        guard !model.isUninstallingApplication, !isRequestingRemovalAuthorization,
+              filteredApplications.contains(where: { $0.id == application.id }) else { return }
+        resetApplicationReview()
+        model.selectedApplicationID = application.id
+        isShowingApplicationReview = true
+    }
+
+    private func closeApplicationReview() {
+        guard !model.isUninstallingApplication, !isRequestingRemovalAuthorization else { return }
+        isShowingApplicationReview = false
+    }
+
+    private func resetApplicationReview() {
+        clearRemovalPreparation()
+        completedRemoval = nil
+        removalFailure = nil
+        removalError = nil
+        vendorUninstallerError = nil
+    }
+
     private var applicationList: some View {
+        GeometryReader { geometry in
+            applicationTable(layout: ApplicationTableLayout(width: geometry.size.width))
+        }
+    }
+
+    private func applicationTable(layout: ApplicationTableLayout) -> some View {
         let duplicateNames = duplicateApplicationNames
         return VStack(spacing: 0) {
-            HStack {
-                Image(systemName: "magnifyingglass")
-                    .foregroundStyle(CalmTheme.secondaryText)
-                TextField(localized("搜索应用"), text: $searchText)
-                    .textFieldStyle(.plain)
-                if !searchText.isEmpty {
-                    Button { searchText = "" } label: {
-                        Image(systemName: "xmark.circle.fill")
-                            .foregroundStyle(CalmTheme.secondaryText)
-                    }
-                    .buttonStyle(.plain)
-                    .accessibilityLabel(localized("清除应用搜索"))
-                }
+            HStack(spacing: ApplicationTableLayout.columnSpacing) {
+                Text(localized("应用"))
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                Text(localized("版本"))
+                    .frame(width: layout.versionWidth, alignment: .leading)
+                Text(localized("大小"))
+                    .frame(width: layout.sizeWidth, alignment: .trailing)
+                Text(localized("操作"))
+                    .frame(width: layout.actionWidth)
             }
-            .padding(10)
-            .background(CalmTheme.surfaceRaised, in: RoundedRectangle(cornerRadius: 9))
-            .padding(12)
-
-            CalmDivider()
+            .font(.system(size: 14, weight: .medium))
+            .foregroundStyle(CalmTheme.secondaryText)
+            .padding(.horizontal, ApplicationTableLayout.horizontalPadding)
+            .frame(height: 40)
+            .accessibilityHidden(true)
 
             Group {
                 if model.isLoadingApplications && model.applications.isEmpty {
-                    ApplicationListSkeleton()
+                    ApplicationListSkeleton(layout: layout)
                 } else if let error = model.applicationsError, model.applications.isEmpty {
                     ToolLoadFailurePane(
                         title: localized("应用清单读取失败"),
@@ -675,23 +762,40 @@ struct UninstallerView: View {
                     ) {
                         Task { await refreshApplications() }
                     }
+                } else if filteredApplications.isEmpty {
+                    Group {
+                        if searchQuery.isEmpty {
+                            ContentUnavailableView(
+                                localized("未找到可卸载的应用"), systemImage: "app.dashed",
+                                description: Text(localized("可以刷新应用清单。"))
+                            )
+                        } else {
+                            ContentUnavailableView.search(text: searchQuery)
+                        }
+                    }
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
                 } else {
-                    List(selection: selectedApplicationBinding) {
+                    List {
                         ForEach(filteredApplications) { application in
                             ApplicationListRow(
+                                layout: layout,
                                 name: application.name,
-                                metadata: "\(applicationVersionLabel(for: application)) · \(applicationSizeLabel(for: application))",
+                                version: applicationVersionLabel(for: application),
+                                size: applicationSizeLabel(for: application),
                                 path: duplicateNames.contains(application.name) ? application.bundleURL.path : nil,
                                 isSelected: model.selectedApplicationID == application.id,
-                                icon: applicationIcon(application, size: 34)
+                                icon: applicationIcon(application, size: 44),
+                                onRemove: { openApplicationReview(application) }
                             )
-                            .tag(application.id)
+                            .simultaneousGesture(TapGesture().onEnded {
+                                selectedApplicationBinding.wrappedValue = application.id
+                            })
                             .listRowInsets(EdgeInsets())
                             .listRowSeparator(.hidden)
                             .listRowBackground(Color.clear)
                         }
                     }
-                    .listStyle(.inset(alternatesRowBackgrounds: false))
+                    .listStyle(.plain)
                     .scrollContentBackground(.hidden)
                 }
             }
@@ -732,21 +836,11 @@ struct UninstallerView: View {
                     ))
                 }
                 Spacer()
-                Button {
-                    Task { await refreshApplications() }
-                } label: {
-                    Image(systemName: "arrow.clockwise")
-                }
-                .buttonStyle(.plain)
-                .disabled(model.isLoadingApplications)
-                .help(localized("在后台重新读取应用清单"))
-                .accessibilityLabel(localized("刷新"))
             }
             .font(.caption)
             .foregroundStyle(CalmTheme.secondaryText)
             .padding(12)
         }
-        .clipShape(RoundedRectangle(cornerRadius: CalmTheme.cardRadius))
     }
 
     @ViewBuilder
@@ -809,7 +903,7 @@ struct UninstallerView: View {
                         }
                         RemovalConfirmationView(
                             application: application,
-                            onCancel: clearRemovalPreparation,
+                            onCancel: closeApplicationReview,
                             onConfirm: { plan in Task { await executeRemoval(plan) } }
                         )
                         .id(application.id)
@@ -817,7 +911,7 @@ struct UninstallerView: View {
                         if let uninstaller = application.vendorUninstaller {
                             vendorUninstallerNotice(uninstaller, for: application.id)
                         } else if isCheckingUninstaller {
-                            ToolBackgroundActivity(label: localized("正在检查厂商卸载器…"))
+                            ToolBackgroundActivity(label: localized("正在查找本机数据与卸载方式…"))
                         }
 
                         if !isCheckingUninstaller {
@@ -844,7 +938,7 @@ struct UninstallerView: View {
             ContentUnavailableView(
                 localized("选择一个应用"),
                 systemImage: "app.dashed",
-                description: Text(localized("在左侧选择应用，查看大小和卸载选项。"))
+                description: Text(localized("选择应用，查看大小和卸载选项。"))
             )
             .frame(maxWidth: .infinity, minHeight: 200)
             .calmCard(padding: 0)
@@ -873,20 +967,23 @@ struct UninstallerView: View {
 
     private func removalApprovalCard(for application: ApplicationCandidate) -> some View {
         VStack(alignment: .leading, spacing: 12) {
-            if isRequestingRemovalAuthorization {
+            if isRequestingRemovalAuthorization || permissions.isChecking {
                 ToolBackgroundActivity(label: localized("正在检查卸载权限…"))
             } else {
-                Label(localized("需要管理员授权"), systemImage: "lock.shield")
+                Label(localized(permissions.isReady ? "需要管理员授权" : "卸载权限尚未就绪"), systemImage: "lock.shield")
                     .font(.headline)
-                Text(localized(PrivilegedUninstallClient.isEnabled
+                Text(localized(permissions.isReady
                     ? "验证管理员身份后，即可确认移到废纸篓。"
-                    : PrivilegedUninstallClient.isAwaitingApproval
-                        ? "请在「系统设置 → 通用 → 登录项与扩展」批准 TraceHalo 卸载助手，返回后点「继续授权」。"
-                        : "请先申请启用卸载助手，再验证管理员身份。"))
+                    : "请先在权限设置中完成配置。配置完成后，后续卸载无需重复打开系统设置。"))
                     .foregroundStyle(CalmTheme.secondaryText)
+                if let message = permissions.errorMessage {
+                    Text(message).font(.caption).foregroundStyle(CalmTheme.secondaryText)
+                }
                 HStack(spacing: 10) {
-                    Button(localized(PrivilegedUninstallClient.isEnabled || PrivilegedUninstallClient.isAwaitingApproval
-                        ? "继续授权" : "申请权限…")) { continuePrivilegedRemoval() }
+                    Button(localized(permissions.isReady ? "继续授权" : "权限设置")) {
+                        if permissions.isReady { continuePrivilegedRemoval() }
+                        else { isShowingPermissionSetup = true }
+                    }
                         .buttonStyle(CalmButtonStyle(prominent: true))
                     Button(localized("在 Finder 中显示")) {
                         NSWorkspace.shared.activateFileViewerSelecting([application.bundleURL])
@@ -909,10 +1006,11 @@ struct UninstallerView: View {
                 return
             }
             pendingPrivilegedRemoval = target
-            if PrivilegedUninstallClient.isEnabled {
-                continuePrivilegedRemoval()
-            } else {
-                isShowingUninstallHelperApproval = true
+            Task {
+                await permissions.refresh()
+                guard pendingPrivilegedRemoval == target,
+                      visibleSelectedApplication?.id == application.id else { return }
+                if permissions.isReady { continuePrivilegedRemoval() }
             }
         } catch {
             removalError = error.localizedDescription
@@ -939,7 +1037,8 @@ struct UninstallerView: View {
         Task {
             defer { isRequestingRemovalAuthorization = false }
             do {
-                guard try await PrivilegedUninstallClient.prepareHelper(),
+                await permissions.refresh()
+                guard permissions.isReady,
                       pendingPrivilegedRemoval == target,
                       visibleSelectedApplication?.id == application.id else { return }
                 try await PrivilegedUninstallClient.checkTrashAccess()
@@ -962,10 +1061,14 @@ struct UninstallerView: View {
                 removalApplicationID = application.id
             } catch PrivilegedUninstallClientError.cancelled {
                 if pendingPrivilegedRemoval == target { clearRemovalPreparation() }
+            } catch PrivilegedUninstallClientError.approvalRequired {
+                await permissions.refresh()
+            } catch PrivilegedUninstallClientError.helperConnectionFailed {
+                permissions.recordCheckFailure(PrivilegedUninstallClientError.helperConnectionFailed)
             } catch PrivilegedUninstallClientError.trashAccessDenied {
                 guard pendingPrivilegedRemoval == target,
                       visibleSelectedApplication?.id == application.id else { return }
-                isShowingTrashAccessAlert = true
+                permissions.recordTrashAccessDenied()
             } catch {
                 guard pendingPrivilegedRemoval == target else { return }
                 removalError = error.localizedDescription
@@ -978,8 +1081,7 @@ struct UninstallerView: View {
         pendingPrivilegedRemoval = nil
         privilegedRemovalAuthorization?.invalidate()
         privilegedRemovalAuthorization = nil
-        isShowingUninstallHelperApproval = false
-        isShowingTrashAccessAlert = false
+        isShowingPermissionSetup = false
     }
 
     private func removalFailureCard(
@@ -1027,7 +1129,7 @@ struct UninstallerView: View {
                     }
                     .buttonStyle(CalmButtonStyle(prominent: appPermissionDenied && retryApplication == nil))
                 }
-                Button(localized("完成")) { removalFailure = nil }
+                Button(localized("完成"), action: closeApplicationReview)
                     .buttonStyle(CalmButtonStyle())
             }
         }
@@ -1127,7 +1229,7 @@ struct UninstallerView: View {
             }
             Text(localized("需要找回应用时，可以到废纸篓中恢复。"))
                 .foregroundStyle(CalmTheme.secondaryText)
-            Button(localized("完成")) { completedRemoval = nil }
+            Button(localized("完成"), action: closeApplicationReview)
                 .buttonStyle(CalmButtonStyle())
                 .padding(.top, 6)
         }
@@ -1204,7 +1306,6 @@ struct UninstallerView: View {
             model.selectedApplicationID = nil
             return
         }
-        await model.loadSelectedApplicationDetails(force: true)
     }
 
     @MainActor
@@ -1292,43 +1393,82 @@ struct UninstallerView: View {
     }
 }
 
+private struct ApplicationTableLayout {
+    let width: CGFloat
+    static let columnSpacing: CGFloat = 20
+    static let horizontalPadding: CGFloat = 12
+    var versionWidth: CGFloat { max(100, min(240, width * 0.20)) }
+    var sizeWidth: CGFloat { max(116, min(220, width * 0.18)) }
+    var actionWidth: CGFloat { 120 }
+}
+
 private struct ApplicationListRow<Icon: View>: View {
+    @Environment(\.locale) private var locale
+    let layout: ApplicationTableLayout
     let name: String
-    let metadata: String
+    let version: String
+    let size: String
     let path: String?
     let isSelected: Bool
     let icon: Icon
+    let onRemove: () -> Void
 
     var body: some View {
-        HStack(spacing: 10) {
-            icon
-            VStack(alignment: .leading, spacing: 3) {
-                Text(name)
-                    .font(.callout.weight(.semibold))
-                    .foregroundStyle(isSelected ? CalmTheme.selectionText : CalmTheme.primaryText)
-                    .lineLimit(1)
-                    .help(name)
-                Text(metadata)
-                    .font(.caption)
-                    .foregroundStyle(isSelected ? CalmTheme.selectionText : CalmTheme.secondaryText)
-                if let path {
-                    Text(path)
-                        .font(.caption)
-                        .foregroundStyle(isSelected ? CalmTheme.selectionText : CalmTheme.secondaryText)
+        HStack(spacing: ApplicationTableLayout.columnSpacing) {
+            HStack(spacing: 12) {
+                icon
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(name)
+                        .font(.system(size: 18, weight: .semibold))
                         .lineLimit(1)
-                        .truncationMode(.middle)
-                        .help(path)
+                        .help(name)
+                    if let path {
+                        Text(path)
+                            .font(.caption)
+                            .foregroundStyle(CalmTheme.secondaryText)
+                            .lineLimit(1)
+                            .truncationMode(.middle)
+                            .help(path)
+                    }
                 }
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            Text(version)
+                .font(.system(size: 16))
+                .foregroundStyle(CalmTheme.secondaryText)
+                .lineLimit(1)
+                .truncationMode(.middle)
+                .help(version)
+                .frame(width: layout.versionWidth, alignment: .leading)
+            Text(size)
+                .font(.system(size: 16).monospacedDigit())
+                .lineLimit(1)
+                .minimumScaleFactor(0.9)
+                .frame(width: layout.sizeWidth, alignment: .trailing)
+            Button(ToolViewsLocalization.text("卸载", locale: locale), action: onRemove)
+                .font(.system(size: 16, weight: .medium))
+                .lineLimit(1)
+                .fixedSize(horizontal: true, vertical: false)
+                .buttonStyle(CalmButtonStyle())
+                .frame(width: layout.actionWidth)
+                .accessibilityLabel(ToolViewsLocalization.format(
+                    "卸载%@", locale: locale, name
+                ))
         }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 7)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(
-            isSelected ? CalmTheme.selectionBackground : .clear,
-            in: RoundedRectangle(cornerRadius: 7)
-        )
+        .foregroundStyle(CalmTheme.primaryText)
+        .padding(.horizontal, ApplicationTableLayout.horizontalPadding)
+        .frame(minHeight: 80)
+        .background {
+            if isSelected {
+                RoundedRectangle(cornerRadius: 7)
+                    .fill(CalmTheme.selectionBackground)
+            }
+        }
+        .overlay(alignment: .bottom) {
+            if !isSelected { CalmDivider() }
+        }
         .contentShape(Rectangle())
+        .accessibilityElement(children: .contain)
     }
 }
 
@@ -1339,7 +1479,7 @@ enum ToolLoadingLayout {
     static let startupInventoryHeight = startupRowHeight * CGFloat(startupPlaceholderRowCount)
         + CGFloat(startupPlaceholderRowCount - 1)
     static let applicationPlaceholderRowCount = 8
-    static let applicationListRowHeight: CGFloat = 62
+    static let applicationListRowHeight: CGFloat = 80
 }
 
 enum ToolSkeletonMotionPolicy {
@@ -1433,23 +1573,31 @@ private struct StartupInventorySkeleton: View {
 }
 
 private struct ApplicationListSkeleton: View {
+    let layout: ApplicationTableLayout
     @Environment(\.locale) private var locale
 
     var body: some View {
         VStack(spacing: 0) {
             ForEach(0 ..< ToolLoadingLayout.applicationPlaceholderRowCount, id: \.self) { index in
-                HStack(spacing: 11) {
-                    RoundedRectangle(cornerRadius: 9, style: .continuous)
-                        .fill(CalmTheme.violet.opacity(0.12))
-                        .frame(width: 42, height: 42)
-                    VStack(alignment: .leading, spacing: 7) {
+                HStack(spacing: ApplicationTableLayout.columnSpacing) {
+                    HStack(spacing: 12) {
+                        RoundedRectangle(cornerRadius: 8, style: .continuous)
+                            .fill(CalmTheme.violet.opacity(0.12))
+                            .frame(width: 44, height: 44)
                         ToolSkeletonBar(width: index.isMultiple(of: 3) ? 142 : 116, height: 10)
-                        ToolSkeletonBar(width: index.isMultiple(of: 2) ? 96 : 124, height: 8)
+                        Spacer(minLength: 0)
                     }
-                    Spacer(minLength: 0)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    ToolSkeletonBar(width: 64, height: 9)
+                        .frame(width: layout.versionWidth, alignment: .leading)
+                    ToolSkeletonBar(width: 58, height: 9)
+                        .frame(width: layout.sizeWidth, alignment: .trailing)
+                    ToolSkeletonBar(width: 48, height: 9)
+                        .frame(width: layout.actionWidth)
                 }
-                .padding(.horizontal, 14)
+                .padding(.horizontal, ApplicationTableLayout.horizontalPadding)
                 .frame(height: ToolLoadingLayout.applicationListRowHeight)
+
             }
             Spacer(minLength: 0)
         }
@@ -1543,15 +1691,165 @@ struct ApplicationRemovalSelection {
     }
     var selectedFileIDs = Set<AssociatedFile.ID>()
 
+    mutating func toggleBulkSelection(for application: ApplicationCandidate) {
+        let eligible = Set(application.associatedFiles.filter(\.isEligibleForBulkSelection).map(\.id))
+        if eligible.isSubset(of: selectedFileIDs) { selectedFileIDs.subtract(eligible) }
+        else { selectedFileIDs.formUnion(eligible) }
+    }
+
+    mutating func setSelected(_ isSelected: Bool, file: AssociatedFile, in application: ApplicationCandidate) {
+        guard dataMode == .clean, file.isEligibleForCleanup,
+              application.associatedFiles.contains(file) else { return }
+        let descendants = application.associatedFiles.filter {
+            $0.path == file.path || $0.path.hasPrefix(file.path + "/")
+        }
+        if isSelected {
+            selectedFileIDs.formUnion(descendants.filter(\.isEligibleForCleanup).map(\.id))
+        } else {
+            selectedFileIDs.subtract(descendants.map(\.id))
+            // An unchecked child must never move through a selected ancestor.
+            selectedFileIDs.subtract(application.associatedFiles.filter {
+                file.path.hasPrefix($0.path + "/")
+            }.map(\.id))
+        }
+    }
+
     func makePlan(for application: ApplicationCandidate) -> UninstallPlan {
-        let selectedFiles = dataMode == .clean
-            ? application.associatedFiles.filter { selectedFileIDs.contains($0.id) }
+        let checked = dataMode == .clean
+            ? application.associatedFiles.filter { $0.isEligibleForCleanup && selectedFileIDs.contains($0.id) }
             : []
+        let complete = checked.filter { parent in
+            !application.associatedFiles.contains { child in
+                child.path.hasPrefix(parent.path + "/") && !selectedFileIDs.contains(child.id)
+            }
+        }
+        let selectedFiles = complete.filter { child in
+            !complete.contains { child.path.hasPrefix($0.path + "/") }
+        }
         return UninstallPlan(application: application, selectedFiles: selectedFiles)
     }
 }
 
-private struct RemovalConfirmationView: View {
+struct RemovalFinalConfirmationView: View {
+    @Environment(\.locale) private var locale
+    let plan: UninstallPlan
+    let onCancel: () -> Void
+    let onConfirm: () -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            Label(text("确认移除"), systemImage: "trash")
+                .font(.title2.weight(.bold))
+                .foregroundStyle(CalmTheme.primaryText)
+            Text(format("确认将「%@」移到废纸篓？", plan.application.name))
+                .font(.callout)
+
+            ScrollView {
+                VStack(alignment: .leading, spacing: 14) {
+                    if plan.coveredAssociatedFiles.contains(where: { !$0.cleanupWarnings.isEmpty }) {
+                        VStack(alignment: .leading, spacing: 10) {
+                            Label {
+                                Text(text("请特别注意所选数据"))
+                            } icon: {
+                                Image(systemName: "exclamationmark.triangle").foregroundStyle(CalmTheme.amber)
+                            }
+                            .font(.callout.weight(.semibold)).foregroundStyle(CalmTheme.primaryText)
+                            ForEach(ApplicationDataCleanupWarning.allCases, id: \.self) { warning in
+                                let count = plan.coveredAssociatedFiles.filter { $0.cleanupWarnings.contains(warning) }.count
+                                if count > 0 {
+                                    VStack(alignment: .leading, spacing: 3) {
+                                        Text(format("%@（%lld 项）", warning.title(locale: locale), Int64(count)))
+                                            .font(.callout.weight(.medium)).foregroundStyle(CalmTheme.primaryText)
+                                        Text(warning.impact(locale: locale)).font(.caption)
+                                    }
+                                }
+                            }
+                        }
+                        .foregroundStyle(CalmTheme.secondaryText)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .calmCard(padding: 14)
+                    }
+
+                    VStack(alignment: .leading, spacing: 10) {
+                        Text(text("将移到废纸篓：")).font(.callout.weight(.semibold))
+                        Text(plan.application.name).font(.callout.weight(.medium))
+                        pathText(plan.application.bundleURL.path)
+                        ForEach(plan.selectedFiles) { file in
+                            CalmDivider()
+                            Text(file.dataPurpose.title(locale: locale)).font(.callout.weight(.medium))
+                            pathText(file.path)
+                            ForEach(warnings(coveredBy: file), id: \.self) { warning in
+                                Label {
+                                    Text(warning.title(locale: locale)).foregroundStyle(CalmTheme.primaryText)
+                                } icon: {
+                                    Image(systemName: "exclamationmark.triangle").foregroundStyle(CalmTheme.amber)
+                                }
+                                .font(.caption.weight(.medium))
+                            }
+                        }
+                        if plan.selectedFiles.isEmpty {
+                            Text(text("本机数据将保留。"))
+                                .font(.callout).foregroundStyle(CalmTheme.secondaryText)
+                        }
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .calmCard(padding: 14)
+
+                    if !plan.retainedAssociatedFiles.isEmpty {
+                        DisclosureGroup(format("将保留（%lld 项候选文件）", Int64(plan.retainedAssociatedFiles.count))) {
+                            VStack(alignment: .leading, spacing: 8) {
+                                ForEach(plan.retainedAssociatedFiles) { file in pathText(file.path) }
+                            }
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(.top, 8)
+                        }
+                        .font(.caption)
+                        .calmCard(padding: 14)
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
+
+            Text(text("仅将应用和已选文件移到废纸篓，不会清空废纸篓。"))
+                .font(.caption).foregroundStyle(CalmTheme.secondaryText)
+            HStack(spacing: 12) {
+                Spacer()
+                Button(text("取消"), action: onCancel)
+                    .buttonStyle(CalmButtonStyle()).keyboardShortcut(.cancelAction)
+                Button(text("确认移除"), role: .destructive, action: onConfirm)
+                    .buttonStyle(.borderedProminent).tint(CalmTheme.rose)
+            }
+        }
+        .padding(22)
+        .frame(width: 660, height: 610)
+        .calmPage()
+    }
+
+    private func warnings(coveredBy file: AssociatedFile) -> [ApplicationDataCleanupWarning] {
+        let covered = plan.coveredAssociatedFiles.filter {
+            $0.path == file.path || $0.path.hasPrefix(file.path + "/")
+        }
+        return ApplicationDataCleanupWarning.allCases.filter { warning in
+            covered.contains { $0.cleanupWarnings.contains(warning) }
+        }
+    }
+
+    private func pathText(_ path: String) -> some View {
+        let home = FileManager.default.homeDirectoryForCurrentUser.path
+        let display = path.hasPrefix(home + "/") ? "~" + path.dropFirst(home.count) : path
+        return Text(display)
+            .font(.caption.monospaced()).foregroundStyle(CalmTheme.secondaryText)
+            .textSelection(.enabled).fixedSize(horizontal: false, vertical: true)
+            .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private func text(_ key: String) -> String { ToolViewsLocalization.text(key, locale: locale) }
+    private func format(_ key: String, _ arguments: CVarArg...) -> String {
+        String(format: text(key), locale: locale, arguments: arguments)
+    }
+}
+
+struct RemovalConfirmationView: View {
     @Environment(AppModel.self) private var model
     @Environment(\.locale) private var locale
     @State private var selection = ApplicationRemovalSelection()
@@ -1559,6 +1857,14 @@ private struct RemovalConfirmationView: View {
     let application: ApplicationCandidate
     let onCancel: () -> Void
     let onConfirm: (UninstallPlan) -> Void
+
+    init(application: ApplicationCandidate, initialSelection: ApplicationRemovalSelection = ApplicationRemovalSelection(),
+         onCancel: @escaping () -> Void, onConfirm: @escaping (UninstallPlan) -> Void) {
+        self.application = application
+        self._selection = State(initialValue: initialSelection)
+        self.onCancel = onCancel
+        self.onConfirm = onConfirm
+    }
 
     private var isLookingForFiles: Bool {
         model.isLoadingApplicationDetails
@@ -1568,8 +1874,6 @@ private struct RemovalConfirmationView: View {
     var body: some View {
         let plan = selection.makePlan(for: application)
         VStack(alignment: .leading, spacing: 16) {
-            Text(localizedFormat("%@将移到废纸篓。", application.name))
-
             if isLookingForFiles || !application.associatedFiles.isEmpty || selection.dataMode == .clean {
                 VStack(alignment: .leading, spacing: 7) {
                     Text(localized("本机数据怎么处理？"))
@@ -1598,6 +1902,10 @@ private struct RemovalConfirmationView: View {
                 cleanupFiles
             }
 
+            Text(localized("未列出的位置、个人文稿和云端数据不会清理。查找结果不代表全部历史数据。"))
+                .font(.caption)
+                .foregroundStyle(CalmTheme.secondaryText)
+
             HStack(spacing: 12) {
                 Spacer()
                 Button(localized("取消"), action: onCancel)
@@ -1611,31 +1919,30 @@ private struct RemovalConfirmationView: View {
                 .disabled(!canConfirm(plan))
             }
         }
-        .alert(
-            localizedFormat("确认将「%@」移到废纸篓？", application.name),
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .sheet(
             isPresented: Binding(
                 get: { pendingConfirmation != nil },
                 set: { if !$0 { pendingConfirmation = nil } }
-            ),
-            presenting: pendingConfirmation
-        ) { confirmedPlan in
-            Button(localized("取消"), role: .cancel) {}
-            Button(localized("确认移除"), role: .destructive) {
-                let currentPlan = selection.makePlan(for: application)
-                guard canConfirm(currentPlan),
-                      currentPlan.application.id == confirmedPlan.application.id,
-                      currentPlan.selectedFiles == confirmedPlan.selectedFiles else { return }
-                onConfirm(confirmedPlan)
-            }
-        } message: { confirmedPlan in
-            if confirmedPlan.selectedFiles.isEmpty {
-                Text(localized("仅移除应用，保留本机数据。"))
-            } else {
-                Text(localizedFormat("选中的本机文件（%lld 项）也会移到废纸篓。", Int64(confirmedPlan.selectedFiles.count)))
+            )
+        ) {
+            if let confirmedPlan = pendingConfirmation {
+                RemovalFinalConfirmationView(plan: confirmedPlan, onCancel: {
+                    pendingConfirmation = nil
+                }, onConfirm: {
+                    let currentPlan = selection.makePlan(for: application)
+                    guard canConfirm(currentPlan),
+                          currentPlan.application.id == confirmedPlan.application.id,
+                          currentPlan.selectedFiles == confirmedPlan.selectedFiles else { return }
+                    pendingConfirmation = nil
+                    onConfirm(confirmedPlan)
+                })
+                .traceHaloLanguageEnvironment()
             }
         }
         .onChange(of: application.associatedFiles) { _, _ in
             selection.selectedFileIDs.removeAll()
+            pendingConfirmation = nil
         }
     }
 
@@ -1689,7 +1996,7 @@ private struct RemovalConfirmationView: View {
                 Text(localized("选择要一起清理的文件"))
                     .font(.headline)
                 Spacer()
-                if !isLookingForFiles && !application.associatedFiles.isEmpty {
+                if !isLookingForFiles && application.associatedFiles.contains(where: \.isEligibleForBulkSelection) {
                     selectAllFilesButton
                 }
                 rescanButton
@@ -1702,9 +2009,32 @@ private struct RemovalConfirmationView: View {
             } else {
                 Text(localizedFormat("这些文件可能与%@有关。未勾选的文件会保留。", application.name))
                     .foregroundStyle(CalmTheme.secondaryText)
-                ForEach(application.associatedFiles) { file in
+                if let summary = application.dataDiscovery {
+                    DisclosureGroup(localized("查找范围与限制")) {
+                        discoveryCoverage(summary)
+                            .padding(.top, 4)
+                    }
+                    .font(.caption)
+                    if summary.wasLimited || summary.unreadableLocations {
+                        Text(localized("部分位置受权限或查找范围限制，可能仍有未发现的文件。"))
+                            .font(.caption)
+                            .foregroundStyle(CalmTheme.secondaryText)
+                    }
+                }
+                Text(localized("全选包含归属未确认、共享数据和保存的内容。请核对下方标记；未勾选的项目会保留。"))
+                    .font(.caption)
+                    .foregroundStyle(CalmTheme.secondaryText)
+                ForEach(application.associatedFiles.filter(\.isEligibleForCleanup)) { file in
                     CalmDivider()
                     associatedFileRow(file)
+                }
+                if application.associatedFiles.contains(where: { !$0.isEligibleForCleanup }) {
+                    CalmDivider()
+                    Label(localized("无法在此清理 · 路径或来源受限"), systemImage: "lock.shield")
+                        .font(.callout.weight(.semibold))
+                    ForEach(application.associatedFiles.filter { !$0.isEligibleForCleanup }) { file in
+                        associatedFileRow(file)
+                    }
                 }
             }
         }
@@ -1712,10 +2042,10 @@ private struct RemovalConfirmationView: View {
     }
 
     private var selectAllFilesButton: some View {
-        let fileIDs = Set(application.associatedFiles.map(\.id))
+        let fileIDs = Set(application.associatedFiles.filter(\.isEligibleForBulkSelection).map(\.id))
         let allSelected = fileIDs.isSubset(of: selection.selectedFileIDs)
         return Button(localized(allSelected ? "取消全选" : "全选")) {
-            selection.selectedFileIDs = allSelected ? [] : fileIDs
+            selection.toggleBulkSelection(for: application)
         }
         .buttonStyle(CalmButtonStyle())
         .disabled(model.isLoadingApplications || model.isUninstallingApplication)
@@ -1734,36 +2064,53 @@ private struct RemovalConfirmationView: View {
     }
 
     private func associatedFileRow(_ file: AssociatedFile) -> some View {
-        let title = fileTitle(file.category)
+        let title = file.dataPurpose.title(locale: locale)
         return VStack(alignment: .leading, spacing: 5) {
+            if file.isEligibleForCleanup {
             Toggle(isOn: Binding(
                 get: { selection.selectedFileIDs.contains(file.id) },
                 set: { isChecked in
-                    if isChecked {
-                        selection.selectedFileIDs.insert(file.id)
-                    } else {
-                        selection.selectedFileIDs.remove(file.id)
-                    }
+                    selection.setSelected(isChecked, file: file, in: application)
                 }
             )) {
-                VStack(alignment: .leading, spacing: 3) {
+                HStack {
                     Text(title).font(.callout.weight(.medium))
-                    if let subtitle = fileSubtitle(file.category) {
-                        Text(subtitle)
-                            .font(.caption)
-                            .foregroundStyle(CalmTheme.secondaryText)
-                    }
-                    if application.associatedFiles.contains(where: {
-                        $0.id != file.id && $0.category == file.category
-                    }) {
-                        let url = URL(fileURLWithPath: file.path)
-                        Text(url.deletingLastPathComponent().lastPathComponent + "/" + url.lastPathComponent)
-                            .font(.caption)
-                            .foregroundStyle(CalmTheme.secondaryText)
-                    }
+                    Spacer(minLength: 10)
+                    Text(file.sizeBytes.map { MetricFormatter.bytes($0, locale: locale) } ?? localized("大小未统计"))
+                        .font(.caption).foregroundStyle(CalmTheme.secondaryText)
                 }
             }
             .toggleStyle(.checkbox)
+            } else {
+                Label(title, systemImage: "lock")
+                    .font(.callout.weight(.medium))
+            }
+            Text(file.dataPurpose.impact(locale: locale))
+                .font(.caption)
+                .foregroundStyle(CalmTheme.secondaryText)
+                .fixedSize(horizontal: false, vertical: true)
+            if file.isEligibleForCleanup {
+                ForEach(file.cleanupWarnings, id: \.self) { warning in
+                    Label {
+                        Text(warning.title(locale: locale) + "：" + warning.impact(locale: locale))
+                            .fixedSize(horizontal: false, vertical: true)
+                            .foregroundStyle(CalmTheme.secondaryText)
+                    } icon: {
+                        Image(systemName: "exclamationmark.triangle").foregroundStyle(CalmTheme.amber)
+                    }
+                    .font(.caption)
+                }
+            }
+            Text(displayPath(file))
+                .font(.caption.monospaced())
+                .foregroundStyle(CalmTheme.secondaryText)
+                .textSelection(.enabled)
+                .fixedSize(horizontal: false, vertical: true)
+            if !file.isEligibleForCleanup {
+                Text((file.retentionReason ?? .uncertain).explanation(locale: locale))
+                    .font(.caption.weight(.medium))
+                    .foregroundStyle(CalmTheme.secondaryText)
+            }
 
             DisclosureGroup(localized("文件详情")) {
                 VStack(alignment: .leading, spacing: 4) {
@@ -1773,12 +2120,16 @@ private struct RemovalConfirmationView: View {
                     Text(file.ownershipReason)
                         .font(.caption)
                         .foregroundStyle(CalmTheme.secondaryText)
+                    ForEach(file.additionalEvidence, id: \.self) { evidence in
+                        Text(evidence).font(.caption).foregroundStyle(CalmTheme.secondaryText)
+                    }
                     Button(localized("在 Finder 中显示")) {
                         let path = (file.path as NSString).expandingTildeInPath
                         NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: path)])
                     }
                     .buttonStyle(.link)
                 }
+                .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(.top, 4)
             }
             .font(.caption)
@@ -1786,23 +2137,26 @@ private struct RemovalConfirmationView: View {
         }
     }
 
-    private func fileTitle(_ category: AssociatedFileCategory) -> String {
-        switch category {
-        case .container: localized("设置和其他本机数据")
-        case .groupContainer: localized("可能共享的应用数据")
-        case .preference: localized("应用设置")
-        case .script: localized("自动化文件")
-        case .support: localized("应用数据文件")
-        default: ToolViewsLocalization.associatedCategoryTitle(category, locale: locale)
-        }
+    private func displayPath(_ file: AssociatedFile) -> String {
+        let home = FileManager.default.homeDirectoryForCurrentUser.path
+        return file.path.hasPrefix(home + "/") ? "~" + file.path.dropFirst(home.count) : file.path
     }
 
-    private func fileSubtitle(_ category: AssociatedFileCategory) -> String? {
-        switch category {
-        case .container: localized("可能包含应用在这台 Mac 上保存的内容")
-        case .script: localized("可能包含应用用到的脚本")
-        default: nil
+    private func discoveryCoverage(_ summary: ApplicationDataDiscoverySummary) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(localizedFormat("已检查：应用标识、%lld 个同厂商签名组件、%lld 个脚本文本、%lld 份相关安装收据。", Int64(summary.signedComponentCount), Int64(summary.scriptCount), Int64(summary.receiptCount)))
+            if !summary.signatureVerified {
+                Text(localized("未能验证应用签名；未启用厂商专用路径和应用群组查找。"))
+            }
+            if summary.wasLimited || summary.unreadableLocations {
+                Text(localized("部分位置受权限或查找范围限制，可能仍有未发现的文件。"))
+            }
+            if summary.incompleteSizeCount > 0 {
+                Text(localized("部分文件夹较大或无法读取，大小暂未统计。"))
+            }
         }
+        .font(.caption)
+        .foregroundStyle(CalmTheme.secondaryText)
     }
 
     private func confirmationButtonTitle(for plan: UninstallPlan) -> String {

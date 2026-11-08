@@ -7,6 +7,8 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		D11FA98B470B7D62000E0002 /* UninstallPermissions.swift in Sources */ = {isa = PBXBuildFile; fileRef = D11FA98B470B7D62000E0001 /* UninstallPermissions.swift */; };
+		D11FA98B470B7D62000D0002 /* ApplicationDataDiscovery.swift in Sources */ = {isa = PBXBuildFile; fileRef = D11FA98B470B7D62000D0001 /* ApplicationDataDiscovery.swift */; };
 		0841B250A7435118B6C321AA /* DashboardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 60970E2EC1369EB8ACA5D618 /* DashboardView.swift */; };
 		0A1C5E62E5D24D3EB4732C3A /* DashboardHistoryStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0A1C5E62E5D24D3EB4732C3B /* DashboardHistoryStore.swift */; };
 		0BFFF12C7B0A472AD1236AEC /* AppComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4D97C0AA67E73E4A30C0FCBE /* AppComponents.swift */; };
@@ -134,6 +136,8 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
+		D11FA98B470B7D62000E0001 /* UninstallPermissions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UninstallPermissions.swift; sourceTree = "<group>"; };
+		D11FA98B470B7D62000D0001 /* ApplicationDataDiscovery.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ApplicationDataDiscovery.swift; sourceTree = "<group>"; };
 		060F0D591FB97C9CAA9238F0 /* ReportPDFExporter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReportPDFExporter.swift; sourceTree = "<group>"; };
 		0A1C5E62E5D24D3EB4732C3B /* DashboardHistoryStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardHistoryStore.swift; sourceTree = "<group>"; };
 		0A6DF58994C1264DCD78BB93 /* Package.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Package.swift; sourceTree = SOURCE_ROOT; };
@@ -263,6 +267,7 @@
 				544F78EE6AEF7EA2BE89CCAA /* SystemDeviceArtworkResolver.swift */,
 				EBAC7D40DE2DE38337E5F45D /* TraceHaloApp.swift */,
 				FC4F1B70C697FF294ACF5CE7 /* ToolViews.swift */,
+				D11FA98B470B7D62000E0001 /* UninstallPermissions.swift */,
 				C22E602678BC2575BB4531BB /* TraceHaloApplicationDelegate.swift */,
 				75938A48C89284756821868B /* UISnapshotCapture.swift */,
 			);
@@ -303,6 +308,7 @@
 				70E7F07429E1D2C7FF43A665 /* SMCSensorReader.swift */,
 				77A6EB48C784B8096D699CF7 /* Safety.swift */,
 				0C6BF8BA18A12048F240D310 /* ScanningServices.swift */,
+				D11FA98B470B7D62000D0001 /* ApplicationDataDiscovery.swift */,
 				0AFA4F181438F2B4064712D4 /* SensorHelperBridge.swift */,
 				5ED29E7DB7EFBE7184DD4BC7 /* StorageIOReader.swift */,
 				6A07E3D5A4482244CF159568 /* SystemModels.swift */,
@@ -571,6 +577,7 @@
 				1AC38480F8976D0222834E10 /* SystemDeviceArtworkResolver.swift in Sources */,
 				D39EB80BF8CD812387F23631 /* TraceHaloApp.swift in Sources */,
 				71269E2B4EA16E8921E86E47 /* ToolViews.swift in Sources */,
+				D11FA98B470B7D62000E0002 /* UninstallPermissions.swift in Sources */,
 				75E0EBB0A4CC12D5A4FD2F63 /* TraceHaloApplicationDelegate.swift in Sources */,
 				99C387E011255AD5420BA2F3 /* UISnapshotCapture.swift in Sources */,
 			);
@@ -604,6 +611,7 @@
 				CDB5E47D152BF6E72EC70E69 /* SMCSensorReader.swift in Sources */,
 				ED3D5C7B59FFE4A9BB840557 /* Safety.swift in Sources */,
 				D679CAF6FCD43128FD22EF52 /* ScanningServices.swift in Sources */,
+				D11FA98B470B7D62000D0002 /* ApplicationDataDiscovery.swift in Sources */,
 				AA9C9202E678CFD4CC621DAE /* SensorHelperBridge.swift in Sources */,
 				564E8A4EE15275D17CBB04A7 /* StorageIOReader.swift in Sources */,
 				E98BCA7680CAC1243D1DDE3A /* SystemModels.swift in Sources */,
@@ -722,7 +730,7 @@
 				CODE_SIGN_ENTITLEMENTS = Xcode/TraceHalo/TraceHalo.entitlements;
 				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 26;
+				CURRENT_PROJECT_VERSION = 39;
 				DEVELOPMENT_TEAM = 4DXU5FSLLY;
 				ENABLE_APP_SANDBOX = NO;
 				ENABLE_HARDENED_RUNTIME = YES;
@@ -734,7 +742,7 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MARKETING_VERSION = 0.2.0;
+				MARKETING_VERSION = 0.2.1;
 				PRODUCT_BUNDLE_IDENTIFIER = com.tseai.tracehalo;
 				PRODUCT_MODULE_NAME = TraceHaloApp;
 				PRODUCT_NAME = TraceHalo;
@@ -750,7 +758,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_ENTITLEMENTS = Xcode/TraceHalo/TraceHalo.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 26;
+				CURRENT_PROJECT_VERSION = 39;
 				DEVELOPMENT_TEAM = 4DXU5FSLLY;
 				ENABLE_APP_SANDBOX = NO;
 				ENABLE_HARDENED_RUNTIME = YES;
@@ -762,7 +770,7 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MARKETING_VERSION = 0.2.0;
+				MARKETING_VERSION = 0.2.1;
 				PRODUCT_BUNDLE_IDENTIFIER = com.tseai.tracehalo;
 				PRODUCT_MODULE_NAME = TraceHaloApp;
 				PRODUCT_NAME = TraceHalo;

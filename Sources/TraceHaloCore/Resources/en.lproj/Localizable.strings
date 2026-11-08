@@ -218,3 +218,55 @@
 "report.battery.health" = "Health: %@";
 "report.battery.serial" = "Serial: [redacted]";
 "report.section.network" = "[Network]";
+
+/* Read-only application data discovery */
+"data.purpose.cache.title" = "Cache";
+"data.purpose.cache.impact" = "Temporary data. The app may need to download or rebuild it, which can slow the next launch.";
+"data.purpose.logs.title" = "Activity logs";
+"data.purpose.logs.impact" = "Troubleshooting records. Removing them loses this diagnostic history.";
+"data.purpose.settings.title" = "App settings";
+"data.purpose.settings.impact" = "May contain preferences. Reinstalling may restore the default settings after removal.";
+"data.purpose.savedState.title" = "Window and restore state";
+"data.purpose.savedState.impact" = "May contain window and recovery state. The previous session may no longer be recoverable.";
+"data.purpose.websiteData.title" = "Website and sign-in data";
+"data.purpose.websiteData.impact" = "May contain cookies, sign-in state and offline web content. Removal may sign you out.";
+"data.purpose.userData.title" = "Saved content and app data";
+"data.purpose.userData.impact" = "May contain saved content, account configuration or downloaded files. Contents were not inspected; check your backup before removal.";
+"data.purpose.automation.title" = "Automation files";
+"data.purpose.automation.impact" = "May contain scripts and workflows. Removing them may stop related automations.";
+"data.purpose.background.title" = "Background or extension component";
+"data.purpose.background.impact" = "May support background tasks or extensions. Use the vendor uninstaller for components that require system deregistration.";
+"data.purpose.shared.title" = "Shared app data";
+"data.purpose.shared.impact" = "May be used by multiple apps or extensions from the same vendor.";
+"data.purpose.unknown.title" = "Files with an unconfirmed purpose";
+"data.purpose.unknown.impact" = "Only a path reference was found; its purpose and ownership are unconfirmed.";
+"data.retain.shared" = "May be shared with another app, version or extension.";
+"data.retain.uncertain" = "Only a name or path reference is available; ownership is unconfirmed.";
+"data.retain.outsideScope" = "Kept: outside this cleanup scope. Inspect it in Finder or use the vendor uninstaller.";
+"data.retain.symbolicLink" = "Kept: this path contains a symbolic link and may point to another app’s data.";
+"data.evidence.component" = "Identifier from a component with the same verified signing team:";
+"data.evidence.group" = "The verified app signature declares this shared group:";
+"data.evidence.vendor" = "The app identity and signing team match this documented location rule:";
+"data.evidence.background" = "The background startup record directly references a program inside this app:";
+"data.evidence.script" = "A bundled script contains this literal path; the script was not executed:";
+"data.evidence.receipt" = "The same installation receipt lists this app and component; this does not establish exclusive ownership:";
+"uninstall.overlappingAssociation" = "The uninstall plan contains overlapping data folders. Review the selection: %@";
+"data.purpose.browserProfile.title" = "Browser profile";
+"data.purpose.browserProfile.impact" = "May contain bookmarks, browsing history, cookies and sign-in state. Unsynced or unbacked-up content may not be recoverable after removal.";
+"data.evidence.otherApp" = "Other installed apps declare use of this data location: %@";
+
+"data.warning.uncertain.title" = "Unconfirmed ownership";
+
+"data.warning.uncertain.impact" = "Inferred from a name or path reference only. Check ownership before cleanup.";
+
+"data.warning.shared.title" = "Shared data";
+
+"data.warning.shared.impact" = "Other apps, versions or extensions may also use this data. Cleanup may affect them.";
+
+"data.warning.savedContent.title" = "Saved content";
+
+"data.warning.savedContent.impact" = "May contain personal files, account settings or sign-in data. Check your backups before cleanup.";
+
+"data.retain.protectedContents" = "Kept: this folder contains a protected finding. Choose its other children individually.";
+
+"uninstall.protectedDescendant" = "The selected folder contains a protected finding. Choose its other children individually: %@";

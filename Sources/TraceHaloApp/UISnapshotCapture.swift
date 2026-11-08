@@ -1,5 +1,6 @@
 import AppKit
 import SwiftUI
+import TraceHaloCore
 
 #if SNAPSHOT_QA
 @MainActor
@@ -82,6 +83,19 @@ enum UISnapshotCapture {
             ),
             Target(name: "03-optimizer", view: wrapped(OptimizerView(), model: model), size: pageSize),
             Target(name: "04-uninstaller", view: wrapped(UninstallerView(), model: model), size: pageSize),
+            rootTarget(
+                name: "04-uninstaller-light", model: model,
+                size: CGSize(width: 1_440, height: 1_024), destination: .uninstaller
+            ),
+            rootTarget(
+                name: "04-uninstaller-compact", model: model,
+                size: CGSize(width: 1_000, height: 700), destination: .uninstaller
+            ),
+            rootTarget(
+                name: "04-uninstaller-light-en", model: model,
+                size: CGSize(width: 1_000, height: 700), destination: .uninstaller,
+                locale: Locale(identifier: "en")
+            ),
             rootTarget(
                 name: "05-storage",
                 model: model,
@@ -175,10 +189,84 @@ enum UISnapshotCapture {
 
         targets.append(contentsOf: reportRegressionTargets(model: reportRegressionModel))
         try await capture(targets, outputDirectory: outputDirectory)
+        try await captureUninstallPermissions(outputDirectory: outputDirectory)
+    }
+
+    static func captureUninstallPermissions(outputDirectory: URL) async throws {
+        var targets: [Target] = []
+        let states: [(String, UninstallHelperSetupState, Bool, Bool)] = [
+            ("not-configured", .notEnabled, false, false),
+            ("approval-pending", .awaitingApproval, false, false),
+            ("update-required", .updateRequired, false, false),
+            ("disk-denied", .enabled, true, false),
+            ("check-failed", .enabled, false, true),
+            ("ready", .enabled, false, false)
+        ]
+        let suite = "TraceHalo-permission-snapshots-\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suite)!
+        defer { defaults.removePersistentDomain(forName: suite) }
+        for language in ["zh-Hans", "en"] {
+            for (name, helper, denied, failed) in states {
+                let service = PermissionSnapshotService(helperState: helper, denied: denied, failed: failed,
+                    failureMessage: language == "en" ? "Could not verify access. Try checking again." : "暂时无法检查访问权限，请重新检查。")
+                let controller = UninstallPermissionController(service: service, defaults: defaults)
+                await controller.refresh()
+                let view = UninstallPermissionSetupView(controller: controller)
+                    .environment(\.locale, Locale(identifier: language))
+                    .preferredColorScheme(.light)
+                targets.append(Target(name: "21-permissions-\(name)-\(language)", view: AnyView(view),
+                    size: CGSize(width: 660, height: 610), appearance: .aqua))
+            }
+        }
+        try await capture(targets, outputDirectory: outputDirectory)
     }
 
     static func captureReportRegression(model: AppModel, outputDirectory: URL) async throws {
         try await capture(reportRegressionTargets(model: model), outputDirectory: outputDirectory)
+    }
+
+    static func captureDataReview(outputDirectory: URL) async throws {
+        let model = AppModel()
+        var application = FixtureCatalog.applications[0]
+        application.associatedFiles.append(AssociatedFile(
+            path: "~/Library/Containers/com.example.SampleStudio", category: .container,
+            sizeBytes: 200_000_000, ownershipReason: "Fixture: identifier match",
+            matchBasis: .exactBundleIdentifier("com.example.SampleStudio")))
+        application.associatedFiles.append(AssociatedFile(
+            path: "~/Library/Group Containers/team.shared", category: .groupContainer,
+            ownershipReason: "Fixture: signed app group", matchBasis: .appGroup("team.shared"), retentionReason: .shared))
+        application.dataDiscovery = ApplicationDataDiscoverySummary()
+        application.dataDiscovery?.signatureVerified = true
+        application.dataDiscovery?.signedComponentCount = 2
+        application.dataDiscovery?.scriptCount = 5
+        application.dataDiscovery?.receiptCount = 1
+        var targets: [Target] = []
+        for language in ["zh-Hans", "en"] {
+            for mode in ["keep", "clean", "all-selected"] {
+                var selection = ApplicationRemovalSelection()
+                if mode != "keep" { selection.dataMode = .clean }
+                if mode == "all-selected" { selection.toggleBulkSelection(for: application) }
+                let view = ScrollView {
+                    RemovalConfirmationView(application: application, initialSelection: selection,
+                        onCancel: {}, onConfirm: { _ in })
+                        .padding(20)
+                }
+                .background(CalmTheme.canvas)
+                .preferredColorScheme(.light)
+                .environment(model)
+                .environment(\.locale, Locale(identifier: language))
+                targets.append(Target(name: "data-review-\(mode)-\(language)",
+                    view: AnyView(view), size: CGSize(width: 720, height: 640), appearance: .aqua))
+                if mode == "all-selected" {
+                    targets.append(Target(name: "data-review-final-\(language)",
+                        view: AnyView(RemovalFinalConfirmationView(plan: selection.makePlan(for: application), onCancel: {}, onConfirm: {})
+                            .environment(\.locale, Locale(identifier: language))
+                            .preferredColorScheme(.light)),
+                        size: CGSize(width: 660, height: 610), appearance: .aqua))
+                }
+            }
+        }
+        try await capture(targets, outputDirectory: outputDirectory)
     }
 
     private static func reportRegressionTargets(model: AppModel) -> [Target] {
@@ -407,5 +495,19 @@ enum UISnapshotCapture {
         )
     }
 
+}
+
+@MainActor
+private struct PermissionSnapshotService: UninstallPermissionServicing {
+    var helperState: UninstallHelperSetupState
+    var denied: Bool
+    var failed: Bool
+    var failureMessage: String
+    func requestHelper() async throws {}
+    func checkTrashAccess() async throws {
+        if failed { throw NSError(domain: "PermissionSnapshot", code: 1, userInfo: [NSLocalizedDescriptionKey: failureMessage]) }
+        if denied { throw PrivilegedUninstallClientError.trashAccessDenied }
+    }
+    func openDiskSettings() {}
 }
 #endif

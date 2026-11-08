@@ -10,7 +10,7 @@
 
 <p align="center">
   <img alt="Beta" src="https://img.shields.io/badge/状态-Beta-f0a43c">
-  <img alt="源码版本" src="https://img.shields.io/badge/源码版本-v0.2.0-4f8cff">
+  <img alt="源码版本" src="https://img.shields.io/badge/源码版本-v0.2.1-4f8cff">
   <img alt="macOS 14+" src="https://img.shields.io/badge/macOS-14%2B-202733">
   <img alt="许可证" src="https://img.shields.io/badge/许可证-Apache--2.0-56b37f">
 </p>
@@ -19,9 +19,9 @@
   <a href="README.md">English</a> · <strong>简体中文</strong>
 </p>
 
-## v0.2.0 Beta
+## v0.2.1 Beta
 
-**v0.2.0 Beta（build 26）**已完成本机安装验证，源码待合并。Apple 公证与公开安装包发布待完成。[升级说明](docs/releases/v0.2.0.md)
+**v0.2.1 Beta（build 39）**优化应用管理排版、本机数据选择和首次卸载权限引导，修复主窗口启动与恢复问题。本机安装候选版已完成验证，源码待合并；Apple 公证与公开安装包发布待完成。[升级说明](docs/releases/v0.2.1.md)
 
 ## 一眼看懂你的 Mac
 
@@ -123,7 +123,7 @@ TraceHalo 需要 **macOS 14 或更高版本**。
 
 ## 隐私与问题反馈
 
-普通监控功能只读。系统修改需要先审阅并确认。卸载默认保留本机数据，选择清理时只把勾选的文件移到废纸篓。识别到厂商卸载器时，TraceHalo 会提示厂商提供的卸载入口。
+普通监控功能只读。系统修改需要先审阅并确认。卸载默认保留本机数据，选择清理时只把勾选的文件移到废纸篓。识别到厂商卸载器时，TraceHalo 会提示厂商提供的卸载入口。 首次启动会按需引导配置卸载权限，可稍后在「设置 → 卸载权限」继续。已配置后无需在每次卸载时重复打开系统设置；系统要求的管理员验证和最终移除确认仍保留。 数据查找会参考签名组件、共享群组、安装收据和脚本中的固定路径。全选包含共享、归属未确认及保存内容的候选项，并明确标注归属和清理影响；移动前还需在可滚动的完整清单中再次确认。查找有范围和权限限制，不能保证发现全部历史数据。详见[数据查找与清理边界](docs/application-data-discovery.md)。
 
 反馈问题时，请提供 Mac 型号、macOS 版本、发生问题的页面，以及数据是“缺失”还是“错误”。请勿公开未经脱敏的序列号、网络地址、个人文件路径或系统报告。
 

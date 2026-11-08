@@ -10,7 +10,7 @@
 
 <p align="center">
   <img alt="Beta" src="https://img.shields.io/badge/status-Beta-f0a43c">
-  <img alt="Source version" src="https://img.shields.io/badge/source-v0.2.0-4f8cff">
+  <img alt="Source version" src="https://img.shields.io/badge/source-v0.2.1-4f8cff">
   <img alt="macOS 14+" src="https://img.shields.io/badge/macOS-14%2B-202733">
   <img alt="License" src="https://img.shields.io/badge/license-Apache--2.0-56b37f">
 </p>
@@ -19,9 +19,9 @@
   <strong>English</strong> · <a href="README.zh-Hans.md">简体中文</a>
 </p>
 
-## v0.2.0 Beta
+## v0.2.1 Beta
 
-The source for **v0.2.0 Beta (build 26)** is prepared for review and has been installed and verified locally. The public installer and Apple notarization are pending. [Upgrade notes in Simplified Chinese](docs/releases/v0.2.0.md)
+**v0.2.1 Beta (build 39)** improves application management, local-data review and first-run uninstall access setup, and fixes main-window startup and recovery. The locally installed candidate is ready for review; the public installer and Apple notarization are pending. [Upgrade notes in Simplified Chinese](docs/releases/v0.2.1.md)
 
 ## Your Mac, at a glance
 
@@ -135,7 +135,7 @@ Open **Settings → Application Language**. The default follows macOS; unsupport
 
 ## Privacy and support
 
-Normal monitoring is read-only. System changes require review and confirmation. App removal keeps local data by default. If you choose to clean up local data, only checked files are moved to the Trash. When TraceHalo recognizes a vendor uninstaller, it shows the vendor’s recommended entry point.
+Normal monitoring is read-only. System changes require review and confirmation. App removal keeps local data by default. If you choose to clean up local data, only checked files are moved to the Trash. When TraceHalo recognizes a vendor uninstaller, it shows the vendor’s recommended entry point. On first launch, optional app-removal access setup is offered when needed. Reopen it in Settings → Uninstall Permissions. Ready installations avoid repeated trips to System Settings; system administrator verification and final removal confirmation remain in place. Discovery also considers signed components, app groups, package receipts and literal script paths. Select All includes shared/unconfirmed findings and saved content, with explicit ownership and cleanup-impact labels. A scrollable final confirmation lists the targets before anything moves. Discovery has scope and permission limits and cannot identify all historical data. See [data discovery and cleanup boundaries](docs/application-data-discovery.md).
 
 When reporting a problem, include your Mac model, macOS version, the affected page, and whether the value is missing or incorrect. Do not post unredacted serial numbers, network addresses, personal file paths, or system reports.
 

@@ -5,9 +5,11 @@ struct RootView: View {
     @Environment(AppModel.self) private var model
     @Environment(AppNavigationRouter.self) private var navigationRouter
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.scenePhase) private var scenePhase
     @AppStorage("launchDestination") private var launchDestination = AppDestination.dashboard.rawValue
     @AppStorage("lastDestination") private var lastDestination = AppDestination.dashboard.rawValue
     @State private var isSidebarCollapsed = false
+    @State private var showsPermissionIntroduction = false
 
     var body: some View {
         let startupStatus = model.startupPreloadStatus
@@ -94,6 +96,17 @@ struct RootView: View {
             if let newValue {
                 lastDestination = (newValue == .monitor ? AppDestination.dashboard : newValue).rawValue
             }
+        }
+        .task(id: !showsStartupOverlay && model.hasLoadedSnapshot && scenePhase == .active) {
+            guard !showsStartupOverlay, model.hasLoadedSnapshot, scenePhase == .active,
+                  model.dataSource == .live, RuntimeSafetyMode.current == .live else { return }
+            let shouldShow = await UninstallPermissionController.shared.prepareFirstRunIfNeeded()
+            guard !Task.isCancelled else { return }
+            if shouldShow { showsPermissionIntroduction = true }
+        }
+        .sheet(isPresented: $showsPermissionIntroduction) {
+            UninstallPermissionSetupView()
+                .traceHaloLanguageEnvironment()
         }
     }
 
