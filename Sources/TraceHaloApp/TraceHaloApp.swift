@@ -231,19 +231,79 @@ struct FixedWindowCanvasRoot<Content: View>: View {
     }
 }
 
-private struct MenuBarWindowActionBridge: View {
+private struct MenuBarWindowActionBridge: NSViewRepresentable {
     let controller: MenuBarStatusItemController
     @Environment(\.openWindow) private var openWindow
 
-    var body: some View {
-        Color.clear
-            .frame(width: 0, height: 0)
-            .onAppear {
-                controller.setOpenMainWindowAction { [openWindow] in
-                    openWindow(id: TraceHaloWindowIdentity.main.rawValue)
-                }
+    final class WindowObserverView: NSView {
+        var windowDidChange: ((NSWindow) -> Void)?
+
+        override func viewDidMoveToWindow() {
+            super.viewDidMoveToWindow()
+            if let window { windowDidChange?(window) }
+        }
+    }
+
+    func makeNSView(context: Context) -> WindowObserverView {
+        let view = WindowObserverView()
+        view.setAccessibilityElement(false)
+        view.windowDidChange = { [weak controller] window in
+            controller?.registerMainWindow(window)
+        }
+        return view
+    }
+
+    func updateNSView(_ view: WindowObserverView, context: Context) {
+        // Replaying an early request can open a scene. Do it after SwiftUI's
+        // representable update, rather than mutating scene state during it.
+        DispatchQueue.main.async { [weak controller, weak view, openWindow] in
+            guard let controller, let window = view?.window else { return }
+            controller.setOpenMainWindowAction { [openWindow] in
+                openWindow(id: TraceHaloWindowIdentity.main.rawValue)
             }
-            .accessibilityHidden(true)
+            controller.registerMainWindow(window)
+        }
+    }
+}
+
+enum MainWindowRecoveryPolicy {
+    /// Keep a usable window on one display. A one-pixel intersection or a
+    /// titlebar above the visible desktop is not a successful restoration.
+    static func recoveredFrame(
+        for frame: CGRect,
+        visibleFrames: [CGRect],
+        preferredVisibleFrame: CGRect?
+    ) -> CGRect? {
+        let screens = visibleFrames.filter { !$0.isEmpty && !$0.isInfinite && !$0.isNull }
+        guard !screens.isEmpty, !screens.contains(where: { $0.contains(frame) }) else { return nil }
+
+        let overlappingScreen = screens.max { left, right in
+            visibleArea(of: frame, on: left) < visibleArea(of: frame, on: right)
+        }
+        let target: CGRect
+        if let overlappingScreen, visibleArea(of: frame, on: overlappingScreen) > 0 {
+            target = overlappingScreen
+        } else if let preferredVisibleFrame, screens.contains(preferredVisibleFrame) {
+            target = preferredVisibleFrame
+        } else {
+            target = screens[0]
+        }
+
+        // Preserve the fixed canvas. If a replacement display is smaller,
+        // keep the titlebar at the top and the leading edge reachable.
+        let x = frame.width <= target.width
+            ? min(max(frame.minX, target.minX), target.maxX - frame.width)
+            : target.minX
+        let y = frame.height <= target.height
+            ? min(max(frame.minY, target.minY), target.maxY - frame.height)
+            : target.maxY - frame.height
+        let recovered = CGRect(origin: CGPoint(x: x, y: y), size: frame.size)
+        return recovered == frame ? nil : recovered
+    }
+
+    private static func visibleArea(of frame: CGRect, on screen: CGRect) -> CGFloat {
+        let intersection = frame.intersection(screen)
+        return intersection.isNull ? 0 : intersection.width * intersection.height
     }
 }
 

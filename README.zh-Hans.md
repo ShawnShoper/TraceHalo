@@ -10,7 +10,7 @@
 
 <p align="center">
   <img alt="Beta" src="https://img.shields.io/badge/状态-Beta-f0a43c">
-  <img alt="源码版本" src="https://img.shields.io/badge/源码版本-v0.2.1-4f8cff">
+  <img alt="源码版本" src="https://img.shields.io/badge/源码版本-v0.2.2-4f8cff">
   <img alt="macOS 14+" src="https://img.shields.io/badge/macOS-14%2B-202733">
   <img alt="许可证" src="https://img.shields.io/badge/许可证-Apache--2.0-56b37f">
 </p>
@@ -19,9 +19,9 @@
   <a href="README.md">English</a> · <strong>简体中文</strong>
 </p>
 
-## v0.2.1 Beta
+## v0.2.2 Beta
 
-**v0.2.1 Beta（build 39）**优化应用管理排版、本机数据选择和首次卸载权限引导，修复主窗口启动与恢复问题。本机安装候选版已完成验证，源码待合并；Apple 公证与公开安装包发布待完成。[升级说明](docs/releases/v0.2.1.md)
+**v0.2.2 Beta（build 46）**修复 Dock 与菜单栏重新打开主窗口、百分比图表比例和触控板充电状态识别，并完善 R87PRO 接收器识别及未上报状态说明。[升级说明](docs/releases/v0.2.2.md)
 
 ## 一眼看懂你的 Mac
 

@@ -623,9 +623,10 @@ enum AppleDriverBatteryRegistryReader {
     /// Apple input drivers can publish either one of the system charging
     /// booleans or a private `BatteryStatusFlags` value. Boolean keys are used
     /// directly. For the flags field, only combinations verified on the Apple
-    /// driver path are decoded: 0 means no charging flags, while 3 together
-    /// with USB transport is emitted by a wired, charging Magic Trackpad.
-    /// Other bit patterns or transport combinations remain unknown.
+    /// driver path are decoded: 0 means no charging flags, while 3 is emitted
+    /// during USB charging and by the verified Bluetooth Magic Trackpad
+    /// (Apple 0x004c / 0x0265) when it charges while retaining Bluetooth.
+    /// Unverified Bluetooth models and other bit patterns remain unknown.
     static func chargingState(from properties: [String: Any]) -> InputDeviceChargingState {
         for key in [isChargingKey, spacedIsChargingKey] {
             if let value = boolean(properties[key]) {
@@ -639,6 +640,11 @@ enum AppleDriverBatteryRegistryReader {
         case 0: .notCharging
         case 3 where text(properties[kIOHIDTransportKey])?
             .caseInsensitiveCompare("USB") == .orderedSame:
+            .charging
+        case 3 where text(properties[kIOHIDTransportKey])?
+            .caseInsensitiveCompare("Bluetooth") == .orderedSame
+            && unsignedInteger(properties[kIOHIDVendorIDKey]) == 0x004c
+            && unsignedInteger(properties[kIOHIDProductIDKey]) == 0x0265:
             .charging
         default: .unknown
         }

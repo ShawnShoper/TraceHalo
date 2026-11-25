@@ -49,9 +49,9 @@ enum LiveSamplingDomain: CaseIterable, Hashable, Sendable {
         switch self {
         case .processes, .wifiLinkDetails:
             10
-        case .storagePerformance, .gpuPerformance:
+        case .storagePerformance, .gpuPerformance, .inputDevices:
             3
-        case .volumes, .battery, .inputDevices, .gpuInventory, .displayInventory:
+        case .volumes, .battery, .gpuInventory, .displayInventory:
             30
         case .networkDisplayNames:
             60
@@ -962,7 +962,15 @@ public actor LiveSystemService: SystemMetricsProviding {
 /// Read-only storage status. `diskutil info -plist` is used only to enrich the
 /// URL resource values with the device's reported SMART state when available.
 public struct StorageHealthService: StorageHealthProviding, Sendable {
-    public init() {}
+    private let readDiskInfo: @Sendable (String) -> [String: Any]?
+
+    public init() {
+        readDiskInfo = { Self.diskutilInfo(for: $0) }
+    }
+
+    init(readDiskInfo: @escaping @Sendable (String) -> [String: Any]?) {
+        self.readDiskInfo = readDiskInfo
+    }
 
     public func health(for volume: StorageVolume) async -> StorageHealth {
         let URL = URL(fileURLWithPath: volume.path, isDirectory: true)
@@ -1010,7 +1018,7 @@ public struct StorageHealthService: StorageHealthProviding, Sendable {
             ))
         }
 
-        let diskInfo = Self.diskutilInfo(for: volume.path)
+        let diskInfo = readDiskInfo(volume.path)
         Self.appendDiskMetric("DeviceIdentifier", kind: .device, name: liveText("storage.metric.device", "Device"), from: diskInfo, to: &metrics)
         Self.appendDiskMetric("MediaName", kind: .media, name: liveText("storage.metric.media", "Media"), from: diskInfo, to: &metrics)
         Self.appendDiskMetric("BusProtocol", kind: .connection, name: liveText("storage.metric.connection", "Connection"), from: diskInfo, to: &metrics)
@@ -1069,17 +1077,11 @@ public struct StorageHealthService: StorageHealthProviding, Sendable {
 
     private static func diskutilInfo(for path: String) -> [String: Any]? {
         let process = Process()
-        let output = Pipe()
         process.executableURL = URL(fileURLWithPath: "/usr/sbin/diskutil")
         process.arguments = ["info", "-plist", path]
-        process.standardOutput = output
-        process.standardError = FileHandle.nullDevice
 
         do {
-            try process.run()
-            process.waitUntilExit()
-            guard process.terminationStatus == 0 else { return nil }
-            let data = output.fileHandleForReading.readDataToEndOfFile()
+            let data = try ProcessOutputReader.read(from: process)
             return try PropertyListSerialization.propertyList(from: data, options: [], format: nil) as? [String: Any]
         } catch {
             return nil

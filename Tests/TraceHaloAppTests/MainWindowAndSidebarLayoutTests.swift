@@ -1,4 +1,5 @@
 import AppKit
+import Darwin
 import Observation
 import SwiftUI
 import XCTest
@@ -49,6 +50,317 @@ final class MainWindowAndSidebarLayoutTests: XCTestCase {
 
         XCTAssertTrue(window.isVisible)
         XCTAssertEqual(router.destination, .dashboard)
+    }
+
+    @MainActor
+    func testStatusBarRequestsApplicationActivationInAdditionToRestoringTheWindow() {
+        let application = NSApplication.shared
+        let previousPolicy = application.activationPolicy()
+        var activationCount = 0
+        let controller = MenuBarStatusItemController(
+            model: AppModel(),
+            navigationRouter: AppNavigationRouter(),
+            activateMainApplication: { activationCount += 1 }
+        )
+        let window = makeRecoveryTestWindow()
+        defer {
+            window.close()
+            application.setActivationPolicy(previousPolicy)
+        }
+
+        controller.showMainWindow()
+
+        XCTAssertTrue(window.isVisible)
+        XCTAssertEqual(activationCount, 1)
+    }
+
+    @MainActor
+    func testDockAndExistingInstanceActivationDoNotRequestAnotherApplicationReopen() {
+        let application = NSApplication.shared
+        let previousPolicy = application.activationPolicy()
+        var activationCount = 0
+        let controller = MenuBarStatusItemController(
+            model: AppModel(),
+            navigationRouter: AppNavigationRouter(),
+            activateMainApplication: { activationCount += 1 }
+        )
+        let window = makeRecoveryTestWindow()
+        defer {
+            window.close()
+            application.setActivationPolicy(previousPolicy)
+        }
+
+        controller.showMainWindow(source: .dock)
+        controller.activateMainWindowPreservingDestination()
+
+        XCTAssertTrue(window.isVisible)
+        XCTAssertEqual(activationCount, 0, "Launch Services' reopen callback must not start another reopen request")
+    }
+
+    @MainActor
+    func testReopeningAlwaysAsksSwiftUIToRestoreTheSceneEvenWithARetainedWindow() {
+        let application = NSApplication.shared
+        let previousPolicy = application.activationPolicy()
+        let controller = MenuBarStatusItemController(model: AppModel(), navigationRouter: AppNavigationRouter())
+        let window = makeRecoveryTestWindow()
+        var openCount = 0
+        controller.setOpenMainWindowAction { openCount += 1 }
+        defer {
+            window.close()
+            application.setActivationPolicy(previousPolicy)
+        }
+
+        controller.showMainWindow()
+
+        XCTAssertEqual(openCount, 1, "A retained window must not bypass SwiftUI's scene lifecycle")
+        XCTAssertTrue(window.isVisible)
+    }
+
+    @MainActor
+    func testWindowRegistrationRestoresWindowWithoutRelyingOnSwiftUISceneIdentifier() {
+        let application = NSApplication.shared
+        let previousPolicy = application.activationPolicy()
+        let controller = MenuBarStatusItemController(model: AppModel(), navigationRouter: AppNavigationRouter())
+        let window = makeRecoveryTestWindow(identifier: "SwiftUI.generated.main")
+        controller.registerMainWindow(window)
+        defer {
+            window.close()
+            application.setActivationPolicy(previousPolicy)
+        }
+
+        controller.showMainWindow()
+
+        XCTAssertTrue(window.isVisible)
+    }
+
+    @MainActor
+    func testClosedSceneIsRecreatedInsteadOfOrderingItsOldWindowFront() {
+        let application = NSApplication.shared
+        let previousPolicy = application.activationPolicy()
+        let controller = MenuBarStatusItemController(model: AppModel(), navigationRouter: AppNavigationRouter())
+        let oldWindow = makeRecoveryTestWindow()
+        controller.registerMainWindow(oldWindow)
+        oldWindow.close()
+        let replacement = makeRecoveryTestWindow(identifier: "SwiftUI.recreated.main")
+        controller.setOpenMainWindowAction { [weak controller] in controller?.registerMainWindow(replacement) }
+        defer {
+            oldWindow.close()
+            replacement.close()
+            application.setActivationPolicy(previousPolicy)
+        }
+
+        controller.showMainWindow()
+
+        XCTAssertFalse(oldWindow.isVisible)
+        XCTAssertTrue(replacement.isVisible)
+    }
+
+    @MainActor
+    func testLateSceneRegistrationCompletesPendingWindowPresentation() async {
+        let application = NSApplication.shared
+        let previousPolicy = application.activationPolicy()
+        let controller = MenuBarStatusItemController(model: AppModel(), navigationRouter: AppNavigationRouter())
+        controller.setOpenMainWindowAction {}
+        controller.showMainWindow()
+        let window = makeRecoveryTestWindow(identifier: "SwiftUI.late.main")
+        defer {
+            window.close()
+            application.setActivationPolicy(previousPolicy)
+        }
+
+        controller.registerMainWindow(window)
+        try? await Task.sleep(for: .milliseconds(50))
+
+        XCTAssertTrue(window.isVisible)
+    }
+
+    @MainActor
+    func testDockReopenRestoresEvenWhenAppKitReportsAVisibleWindow() {
+        let application = NSApplication.shared
+        let previousPolicy = application.activationPolicy()
+        let delegate = TraceHaloApplicationDelegate()
+        let window = makeRecoveryTestWindow()
+        window.orderFront(nil)
+        var openCount = 0
+        delegate.menuBarController.setOpenMainWindowAction { openCount += 1 }
+        defer {
+            window.close()
+            application.setActivationPolicy(previousPolicy)
+        }
+
+        let shouldUseDefaultReopen = delegate.applicationShouldHandleReopen(application, hasVisibleWindows: true)
+
+        XCTAssertFalse(shouldUseDefaultReopen)
+        XCTAssertEqual(openCount, 1)
+        XCTAssertTrue(window.isVisible)
+    }
+
+    @MainActor
+    func testReopeningRestoresMinimizedWindowAndRegularActivationPolicy() {
+        let application = NSApplication.shared
+        let previousPolicy = application.activationPolicy()
+        let controller = MenuBarStatusItemController(model: AppModel(), navigationRouter: AppNavigationRouter())
+        let window = makeRecoveryTestWindow()
+        window.orderFront(nil)
+        window.miniaturize(nil)
+        application.setActivationPolicy(.accessory)
+        defer {
+            window.close()
+            application.setActivationPolicy(previousPolicy)
+        }
+
+        controller.showMainWindow()
+
+        XCTAssertFalse(window.isMiniaturized)
+        XCTAssertTrue(window.isVisible)
+        XCTAssertEqual(application.activationPolicy(), .regular)
+        XCTAssertTrue(window.collectionBehavior.contains(.moveToActiveSpace))
+    }
+
+    @MainActor
+    func testReopeningMovesAnOffscreenWindowBackOntoADisplay() throws {
+        guard !NSScreen.screens.isEmpty else { throw XCTSkip("Requires a display") }
+        let application = NSApplication.shared
+        let previousPolicy = application.activationPolicy()
+        let controller = MenuBarStatusItemController(model: AppModel(), navigationRouter: AppNavigationRouter())
+        let window = makeRecoveryTestWindow()
+        window.setFrameOrigin(CGPoint(x: -50_000, y: -50_000))
+        defer {
+            window.close()
+            application.setActivationPolicy(previousPolicy)
+        }
+
+        controller.showMainWindow()
+
+        XCTAssertTrue(NSScreen.screens.contains { $0.visibleFrame.intersects(window.frame) })
+        XCTAssertTrue(window.isVisible)
+    }
+
+    @MainActor
+    func testClosingWindowCancelsDeferredPresentation() async {
+        let application = NSApplication.shared
+        let previousPolicy = application.activationPolicy()
+        let controller = MenuBarStatusItemController(model: AppModel(), navigationRouter: AppNavigationRouter())
+        let window = makeRecoveryTestWindow()
+        controller.registerMainWindow(window)
+        defer {
+            window.close()
+            application.setActivationPolicy(previousPolicy)
+        }
+
+        controller.showMainWindow()
+        window.close()
+        try? await Task.sleep(for: .milliseconds(50))
+
+        XCTAssertFalse(window.isVisible, "A queued focus pass must not reopen a window the user just closed")
+    }
+
+    @MainActor
+    func testReopeningRestoresAWindowWithOnlyOnePixelOnscreen() throws {
+        let screen = try XCTUnwrap(NSScreen.main)
+        let application = NSApplication.shared
+        let previousPolicy = application.activationPolicy()
+        let controller = MenuBarStatusItemController(model: AppModel(), navigationRouter: AppNavigationRouter())
+        let window = makeRecoveryTestWindow()
+        defer {
+            window.close()
+            application.setActivationPolicy(previousPolicy)
+        }
+        window.setFrameOrigin(CGPoint(x: screen.visibleFrame.maxX - 1, y: screen.visibleFrame.midY))
+        XCTAssertEqual(screen.visibleFrame.intersection(window.frame).width, 1, accuracy: 0.01)
+
+        controller.showMainWindow(source: .dock)
+
+        XCTAssertTrue(screen.visibleFrame.contains(window.frame))
+        XCTAssertTrue(window.isVisible)
+    }
+
+    func testWindowRecoveryPullsAOnePixelSliverFullyOntoTheDisplay() throws {
+        let screen = CGRect(x: 0, y: 0, width: 2560, height: 1440)
+        let original = CGRect(x: 2559, y: 200, width: 1320, height: 868)
+        let recovered = try XCTUnwrap(MainWindowRecoveryPolicy.recoveredFrame(
+            for: original, visibleFrames: [screen], preferredVisibleFrame: screen
+        ))
+        XCTAssertTrue(screen.contains(recovered))
+        XCTAssertEqual(recovered.size, original.size)
+    }
+
+    func testWindowRecoveryMakesAnOffscreenTitlebarReachable() throws {
+        let screen = CGRect(x: 0, y: 24, width: 2560, height: 1390)
+        let original = CGRect(x: 100, y: 1000, width: 1320, height: 868)
+        let recovered = try XCTUnwrap(MainWindowRecoveryPolicy.recoveredFrame(
+            for: original, visibleFrames: [screen], preferredVisibleFrame: screen
+        ))
+        XCTAssertTrue(screen.contains(recovered))
+        XCTAssertEqual(recovered.maxY, screen.maxY)
+    }
+
+    func testWindowRecoveryPreservesAUsablePositionOnAnotherDisplay() {
+        let left = CGRect(x: -2560, y: 0, width: 2560, height: 1440)
+        let right = CGRect(x: 0, y: 0, width: 2560, height: 1440)
+        XCTAssertNil(MainWindowRecoveryPolicy.recoveredFrame(
+            for: CGRect(x: -2400, y: 200, width: 1320, height: 868),
+            visibleFrames: [left, right], preferredVisibleFrame: right
+        ))
+    }
+
+    func testWindowRecoveryChoosesTheDisplayWithTheLargestVisibleArea() throws {
+        let left = CGRect(x: -1600, y: 0, width: 1600, height: 1000)
+        let right = CGRect(x: 0, y: 0, width: 2560, height: 1440)
+        let recovered = try XCTUnwrap(MainWindowRecoveryPolicy.recoveredFrame(
+            for: CGRect(x: -200, y: 100, width: 1320, height: 868),
+            visibleFrames: [left, right], preferredVisibleFrame: left
+        ))
+        XCTAssertTrue(right.contains(recovered))
+    }
+
+    func testWindowRecoveryUsesThePreferredDisplayAfterADisplayIsRemoved() throws {
+        let left = CGRect(x: -1600, y: 0, width: 1600, height: 1000)
+        let right = CGRect(x: 0, y: 0, width: 2560, height: 1440)
+        let recovered = try XCTUnwrap(MainWindowRecoveryPolicy.recoveredFrame(
+            for: CGRect(x: 5000, y: 200, width: 1320, height: 868),
+            visibleFrames: [left, right], preferredVisibleFrame: right
+        ))
+        XCTAssertTrue(right.contains(recovered))
+    }
+
+    func testWindowRecoveryKeepsTheTitlebarOnASmallerReplacementDisplay() throws {
+        let screen = CGRect(x: 100, y: 200, width: 1000, height: 700)
+        let original = CGRect(x: 900, y: 700, width: 1320, height: 868)
+        let recovered = try XCTUnwrap(MainWindowRecoveryPolicy.recoveredFrame(
+            for: original, visibleFrames: [screen], preferredVisibleFrame: screen
+        ))
+        XCTAssertEqual(recovered.size, original.size)
+        XCTAssertEqual(recovered.minX, screen.minX)
+        XCTAssertEqual(recovered.maxY, screen.maxY)
+    }
+
+    func testWindowRecoveryDoesNotMoveAnAlreadyUsableWindow() {
+        let screen = CGRect(x: 0, y: 0, width: 2560, height: 1440)
+        XCTAssertNil(MainWindowRecoveryPolicy.recoveredFrame(
+            for: CGRect(x: 100, y: 100, width: 1320, height: 868),
+            visibleFrames: [screen], preferredVisibleFrame: screen
+        ))
+    }
+
+    func testWindowRecoveryWaitsWhenNoDisplayIsAvailable() {
+        XCTAssertNil(MainWindowRecoveryPolicy.recoveredFrame(
+            for: CGRect(x: -5000, y: 100, width: 1320, height: 868),
+            visibleFrames: [], preferredVisibleFrame: nil
+        ))
+    }
+
+    @MainActor
+    private func makeRecoveryTestWindow(identifier: String = "main") -> NSWindow {
+        let window = NSWindow(
+            contentRect: CGRect(x: 100, y: 100, width: 240, height: 180),
+            styleMask: [.titled, .closable, .miniaturizable],
+            backing: .buffered,
+            defer: false
+        )
+        window.isReleasedWhenClosed = false
+        window.identifier = NSUserInterfaceItemIdentifier(identifier)
+        return window
     }
 
     @MainActor
@@ -689,6 +1001,41 @@ final class MainWindowAndSidebarLayoutTests: XCTestCase {
         XCTAssertEqual(replacement.acquisition, .primary)
     }
 
+    func testSingleInstanceGuardDoesNotTreatAPermissionErrorAsAnotherInstance() throws {
+        guard geteuid() != 0 else { throw XCTSkip("Root bypasses file mode permission checks") }
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent("TraceHaloLockPermissions-\(UUID())")
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        let lockFile = directory.appendingPathComponent("instance.lock")
+        XCTAssertTrue(FileManager.default.createFile(atPath: lockFile.path, contents: Data()))
+        defer {
+            try? FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: lockFile.path)
+            try? FileManager.default.removeItem(at: directory)
+        }
+        try FileManager.default.setAttributes([.posixPermissions: 0o400], ofItemAtPath: lockFile.path)
+
+        let denied = TraceHaloSingleInstanceGuard(lockFileURL: lockFile)
+
+        XCTAssertEqual(denied.acquisition, .unavailable)
+        try FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: lockFile.path)
+        let restored = TraceHaloSingleInstanceGuard(lockFileURL: lockFile)
+        XCTAssertEqual(restored.acquisition, .primary)
+        withExtendedLifetime(restored) {
+            XCTAssertEqual(TraceHaloSingleInstanceGuard(lockFileURL: lockFile).acquisition, .secondary)
+        }
+    }
+
+    func testSingleInstanceGuardDoesNotTreatAnInvalidLockDirectoryAsAnotherInstance() throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent("TraceHaloLockPath-\(UUID())")
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let regularFile = directory.appendingPathComponent("not-a-directory")
+        XCTAssertTrue(FileManager.default.createFile(atPath: regularFile.path, contents: Data()))
+
+        let guardResult = TraceHaloSingleInstanceGuard(lockFileURL: regularFile.appendingPathComponent("instance.lock"))
+
+        XCTAssertEqual(guardResult.acquisition, .unavailable)
+    }
+
     func testEveryAppBundleInfoPlistProhibitsMultipleInstances() throws {
         let packageRoot = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent()
@@ -723,8 +1070,8 @@ final class MainWindowAndSidebarLayoutTests: XCTestCase {
         let expectations: [(URL, String, String, String)] = [
             (
                 packageRoot.appendingPathComponent("Resources/Info.plist"),
-                "0.2.1",
-                "39",
+                "0.2.2",
+                "46",
                 "Beta"
             ),
             (

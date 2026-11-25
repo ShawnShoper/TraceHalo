@@ -4,8 +4,18 @@ import os
 import SwiftUI
 import TraceHaloCore
 
+enum MainWindowActivationSource: String {
+    case dock
+    case menuBar
+    case activation
+}
+
 @MainActor
 final class MenuBarStatusItemController: NSObject, NSPopoverDelegate {
+    private static let windowLogger = Logger(
+        subsystem: TraceHaloBundleIdentifiers.application,
+        category: "MainWindow"
+    )
     private static let signposter = OSSignposter(
         subsystem: TraceHaloBundleIdentifiers.application,
         category: "MenuBarPopover"
@@ -13,6 +23,7 @@ final class MenuBarStatusItemController: NSObject, NSPopoverDelegate {
 
     private let model: AppModel
     private let navigationRouter: AppNavigationRouter
+    private let activateMainApplication: @MainActor () -> Void
     private let popover = NSPopover()
     private let visualState = MenuBarStatusVisualState()
     private let popoverLayoutState = MenuBarPopoverLayoutState(
@@ -25,6 +36,10 @@ final class MenuBarStatusItemController: NSObject, NSPopoverDelegate {
     private var popoverHostingView: MenuBarPopoverHostingView?
     private var openMainWindowAction: (() -> Void)?
     private var hasPendingMainWindowActivation = false
+    private weak var registeredMainWindow: NSWindow?
+    private weak var closedMainWindow: NSWindow?
+    private var mainWindowPresentationGeneration = 0
+    private var isMainWindowPresentationPending = false
     private var isStarted = false
     private var observationGeneration = 0
     private var popoverPresentation = MenuBarPopoverPresentation()
@@ -46,12 +61,22 @@ final class MenuBarStatusItemController: NSObject, NSPopoverDelegate {
     init(
         model: AppModel,
         navigationRouter: AppNavigationRouter,
-        popoverAnchorOverride: NSButton? = nil
+        popoverAnchorOverride: NSButton? = nil,
+        activateMainApplication: @escaping @MainActor () -> Void = {
+            MenuBarStatusItemController.activateMainApplicationUsingWorkspace()
+        }
     ) {
         self.model = model
         self.navigationRouter = navigationRouter
+        self.activateMainApplication = activateMainApplication
         self.popoverAnchorOverride = popoverAnchorOverride
         super.init()
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(mainWindowWillClose(_:)),
+            name: NSWindow.willCloseNotification,
+            object: nil
+        )
     }
 
     func start() {
@@ -73,6 +98,7 @@ final class MenuBarStatusItemController: NSObject, NSPopoverDelegate {
     }
 
     func stop() {
+        cancelMainWindowPresentation()
         guard isStarted else { return }
         isStarted = false
         observationGeneration += 1
@@ -100,6 +126,31 @@ final class MenuBarStatusItemController: NSObject, NSPopoverDelegate {
         }
     }
 
+    func registerMainWindow(_ window: NSWindow) {
+        registeredMainWindow = window
+        closedMainWindow = nil
+        if isMainWindowPresentationPending {
+            scheduleMainWindowPresentation()
+        }
+    }
+
+    @objc
+    private func mainWindowWillClose(_ notification: Notification) {
+        guard let window = notification.object as? NSWindow,
+              window === registeredMainWindow
+                || (registeredMainWindow == nil && window.identifier == TraceHaloWindowIdentity.main)
+        else { return }
+        closedMainWindow = window
+        registeredMainWindow = nil
+        cancelMainWindowPresentation()
+    }
+
+    private func cancelMainWindowPresentation() {
+        mainWindowPresentationGeneration += 1
+        hasPendingMainWindowActivation = false
+        isMainWindowPresentationPending = false
+    }
+
     /// Ensures Command-Q cannot leave TraceHalo running without any way back
     /// into the app. Entering menu-bar mode is refused if AppKit cannot create
     /// the status item.
@@ -108,6 +159,7 @@ final class MenuBarStatusItemController: NSObject, NSPopoverDelegate {
             start()
         }
         guard let statusItem else { return false }
+        cancelMainWindowPresentation()
         if !model.showMenuBarSummary {
             model.showMenuBarSummary = true
         }
@@ -543,39 +595,107 @@ final class MenuBarStatusItemController: NSObject, NSPopoverDelegate {
         lastOpeningWasCold = measurement.wasCold
     }
 
-    func showMainWindow() {
-        presentMainWindow(navigatingTo: .dashboard)
+    func showMainWindow(source: MainWindowActivationSource = .menuBar) {
+        presentMainWindow(navigatingTo: .dashboard, source: source)
     }
 
     func activateMainWindowPreservingDestination() {
-        presentMainWindow(navigatingTo: nil)
+        presentMainWindow(navigatingTo: nil, source: .activation)
     }
 
-    private func presentMainWindow(navigatingTo destination: AppDestination?) {
+    private func presentMainWindow(
+        navigatingTo destination: AppDestination?,
+        source: MainWindowActivationSource
+    ) {
+        Self.windowLogger.notice("Main window requested: source=\(source.rawValue, privacy: .public)")
         closePopover()
         let application = NSApplication.shared
         application.setActivationPolicy(.regular)
+        application.unhide(nil)
         if let destination {
             navigationRouter.navigate(to: destination)
         }
-        if let window = mainWindow {
-            if window.isMiniaturized {
-                window.deminiaturize(nil)
-            }
-            window.makeKeyAndOrderFront(nil)
-        } else if let openMainWindowAction {
+        mainWindowPresentationGeneration += 1
+        isMainWindowPresentationPending = true
+        // SwiftUI owns the scene lifecycle. A retained NSWindow can belong to
+        // a closed scene, so finding one must never bypass reopening the scene.
+        if let openMainWindowAction {
             openMainWindowAction()
-        } else {
+        } else if mainWindow == nil {
             // Finder/Dock activation can precede the SwiftUI view bridge.
             // Preserve the request rather than silently dropping it.
             hasPendingMainWindowActivation = true
         }
-        application.activate(ignoringOtherApps: true)
+        restoreMainWindowIfAvailable()
+        // Changing accessory -> regular and creating a SwiftUI scene can both
+        // finish after this event. Reassert focus on the next main-loop turn;
+        // registration also completes requests whose scene takes longer.
+        scheduleMainWindowPresentation()
+        if source == .menuBar {
+            // A status popover can be interactive while another app remains
+            // active. Launch Services performs the cooperative activation
+            // handoff; activate() alone can leave the restored window inactive.
+            // Its reopen event takes the Dock path, so this cannot recurse.
+            activateMainApplication()
+        }
+    }
+
+    private static func activateMainApplicationUsingWorkspace() {
+        let bundle = Bundle.main
+        // In-memory XCTest/CLI hosts have no application to reopen.
+        guard bundle.bundleURL.pathExtension == "app",
+              bundle.bundleIdentifier == TraceHaloBundleIdentifiers.application else { return }
+        let configuration = NSWorkspace.OpenConfiguration()
+        configuration.activates = true
+        configuration.createsNewApplicationInstance = false
+        configuration.addsToRecentItems = false
+        NSWorkspace.shared.openApplication(at: bundle.bundleURL, configuration: configuration) { _, error in
+            guard let error else { return }
+            Task { @MainActor in
+                Self.windowLogger.error("Main application activation failed: \(error.localizedDescription, privacy: .private)")
+            }
+        }
+    }
+
+    private func scheduleMainWindowPresentation() {
+        let generation = mainWindowPresentationGeneration
+        DispatchQueue.main.async { [weak self] in
+            guard let self, self.mainWindowPresentationGeneration == generation else { return }
+            self.restoreMainWindowIfAvailable()
+        }
+    }
+
+    private func restoreMainWindowIfAvailable() {
+        guard let window = mainWindow else { return }
+        if window.isMiniaturized {
+            window.deminiaturize(nil)
+        }
+        if !window.collectionBehavior.contains(.canJoinAllSpaces) {
+            window.collectionBehavior.insert(.moveToActiveSpace)
+        }
+        if let recoveredFrame = MainWindowRecoveryPolicy.recoveredFrame(
+            for: window.frame,
+            visibleFrames: NSScreen.screens.map(\.visibleFrame),
+            preferredVisibleFrame: NSScreen.main?.visibleFrame
+        ) {
+            window.setFrameOrigin(recoveredFrame.origin)
+        }
+        NSApplication.shared.activate()
+        window.makeKeyAndOrderFront(nil)
+        window.orderFrontRegardless()
+        isMainWindowPresentationPending = !window.isVisible
+        Self.windowLogger.notice(
+            "Main window restored: visible=\(window.isVisible), minimized=\(window.isMiniaturized), key=\(window.isKeyWindow), activeSpace=\(window.isOnActiveSpace)"
+        )
     }
 
     private var mainWindow: NSWindow? {
-        NSApplication.shared.windows.first {
+        if let window = registeredMainWindow, window !== closedMainWindow {
+            return window
+        }
+        return NSApplication.shared.windows.first {
             $0.identifier == TraceHaloWindowIdentity.main
+                && ($0 !== closedMainWindow || $0.isVisible || $0.isMiniaturized)
         }
     }
 

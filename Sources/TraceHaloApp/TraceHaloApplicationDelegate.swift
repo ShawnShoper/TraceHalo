@@ -27,7 +27,9 @@ final class TraceHaloSingleInstanceGuard {
             S_IRUSR | S_IWUSR
         )
         guard descriptor >= 0 else {
-            acquisition = errno == EACCES || errno == EAGAIN
+            // Permission/path failures do not prove another instance exists.
+            // Only a nonblocking exclusive-lock conflict identifies a peer.
+            acquisition = errno == EWOULDBLOCK
                 ? .secondary
                 : .unavailable
             return
@@ -129,14 +131,12 @@ final class TraceHaloApplicationDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationShouldHandleReopen(
-        _ sender: NSApplication,
+        _: NSApplication,
         hasVisibleWindows _: Bool
     ) -> Bool {
-        let hasVisibleMainWindow = sender.windows.contains {
-            $0.identifier == TraceHaloWindowIdentity.main && $0.isVisible
-        }
-        guard !hasVisibleMainWindow else { return true }
-        menuBarController.showMainWindow()
+        // A visible window can still be minimized, off-screen, or on another
+        // Space. Every Dock reopen must run the same full restoration path.
+        menuBarController.showMainWindow(source: .dock)
         return false
     }
 

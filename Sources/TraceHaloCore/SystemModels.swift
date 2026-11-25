@@ -246,7 +246,7 @@ public enum InputDeviceKind: String, CaseIterable, Equatable, Sendable {
 public enum InputDeviceBatterySource: String, Equatable, Sendable {
     /// A compatibility value published by Apple's input-device driver in the
     /// public IORegistry. The registry key is not a stable cross-version API,
-    /// so callers must present it as a best-effort Apple driver report.
+    /// so it remains best-effort telemetry; retain its source for diagnostics.
     case appleDriverRegistry
 }
 
