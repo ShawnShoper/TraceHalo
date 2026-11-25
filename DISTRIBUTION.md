@@ -2,7 +2,7 @@
 
 ## 当前状态
 
-`v0.2.0 Beta`（build 26）已完成本机安装验证，源码待合并。公开安装包需完成下列发行验证后发布，Apple 公证和上传仍待完成。[升级说明](docs/releases/v0.2.0.md)
+`v0.2.2 Beta` 使用应用版本 `0.2.2`、build `46`。正式安装包必须通过下列发行验证；公开下载及公证结果以 [GitHub Release](https://github.com/ShawnShoper/TraceHalo/releases/tag/v0.2.2) 和随包的 `release-manifest.txt` 为准。[升级说明](docs/releases/v0.2.2.md)
 
 TraceHalo 已取得 `Developer ID Application: Hao Xie (4DXU5FSLLY)` 证书，证书与私钥仅保存在维护者本机钥匙串，不进入仓库。本机 Apple 公证使用的 `notarytool` Keychain profile 已通过 Apple 服务验证；其他发布机器仍需自行配置。缺少 profile 时，正式发布命令会失败关闭（fail closed），不会降级生成可对外发布的 ad-hoc 包。
 
@@ -14,12 +14,12 @@ TraceHalo 已取得 `Developer ID Application: Hao Xie (4DXU5FSLLY)` 证书，�
 - 同一构建输出 DMG、TAR.GZ、ZIP、每个文件各自的 `.sha256`，以及 `release-manifest.txt`；
 - 任一签名、架构、公证、staple、Gatekeeper 或校验步骤失败，整次正式发布失败。
 
-通过正式发行验证后，`v0.2.0 Beta` 的产物将使用以下名称：
+通过正式发行验证后，`v0.2.2 Beta` 的产物将使用以下名称：
 
 ```text
-TraceHalo-0.2.0-arm64-x86_64.dmg
-TraceHalo-0.2.0-arm64-x86_64.tar.gz
-TraceHalo-0.2.0-arm64-x86_64.zip
+TraceHalo-0.2.2-arm64-x86_64.dmg
+TraceHalo-0.2.2-arm64-x86_64.tar.gz
+TraceHalo-0.2.2-arm64-x86_64.zip
 ```
 
 `.dmg` 是面向普通用户的首选安装包，盘内仅包含 `TraceHalo.app` 和 `Applications` 快捷入口。正式发行的 DMG、`.tar.gz` 和 `.zip` 均包含同一个已签名、已公证并独立装订 ticket 的 App。DMG 自身也具有独立公证票据。TAR.GZ 和 ZIP 另含安装说明。

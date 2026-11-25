@@ -124,6 +124,106 @@ final class MenuBarStatusLayoutTests: XCTestCase {
         XCTAssertEqual(model.snapshot.memory.pressurePercent, 72)
         XCTAssertEqual(model.snapshot.cpu.temperatureCelsius, 78)
     }
+
+    @MainActor
+    func testCPUChartHeightRepresentsAbsoluteUsagePercent() async throws {
+        for percentage in [0.0, 11.0, 81.0] {
+            let fraction = try await renderedCPUChartFraction(history: [percentage])
+            XCTAssertEqual(
+                fraction,
+                percentage / 100,
+                accuracy: 0.015,
+                "CPU \(percentage)% must occupy its corresponding fraction of the chart height"
+            )
+        }
+    }
+
+    @MainActor
+    func testCPUChartKeepsSameHeightWhenHistoricalPeakChanges() async throws {
+        let lowOnly = try await renderedCPUChartFraction(history: [11])
+        let afterPeak = try await renderedCPUChartFraction(
+            history: [81] + Array(repeating: 11, count: 27)
+        )
+
+        XCTAssertEqual(lowOnly, afterPeak, accuracy: 0.015)
+        XCTAssertEqual(afterPeak, 0.11, accuracy: 0.015)
+    }
+
+    @MainActor
+    private func renderedCPUChartFraction(history: [Double]) async throws -> Double {
+        let first = try XCTUnwrap(history.first)
+        let values = Array(repeating: first, count: max(32 - history.count, 0)) + history
+        let snapshots = values.map { percentage in
+            var snapshot = SystemSnapshot.fixture
+            snapshot.cpu.totalPercent = percentage
+            snapshot.cpu.userPercent = percentage
+            snapshot.cpu.systemPercent = 0
+            return snapshot
+        }
+        let model = AppModel(metricsProvider: SequencedMetricsProvider(snapshots: snapshots))
+        model.monitorConfiguration = .standard
+        model.monitorConfiguration.showsStatusBarIcon = false
+        model.monitorConfiguration.statusBarComponents = [
+            MonitorStatusBarComponent(style: .miniChart, metric: .cpuTotal, title: "CPU")
+        ]
+        for _ in snapshots {
+            await model.refreshAll()
+        }
+
+        // Magnify the normal status-strip view so the original 15-point chart
+        // can distinguish a true zero baseline from a minimum-height floor.
+        let magnification: CGFloat = 4
+        let width = MenuBarStatusLayout.estimatedContentWidth(for: model.monitorConfiguration)
+        let size = CGSize(width: width * magnification, height: 22 * magnification)
+        let hostingView = NSHostingView(
+            rootView: MenuBarStatusStrip()
+                .environment(model)
+                .environment(\.colorScheme, .light)
+                .scaleEffect(magnification, anchor: .topLeading)
+                .frame(width: size.width, height: size.height, alignment: .topLeading)
+                .background(Color.white)
+        )
+        hostingView.frame = NSRect(origin: .zero, size: size)
+        let window = NSWindow(
+            contentRect: hostingView.frame,
+            styleMask: [.borderless],
+            backing: .buffered,
+            defer: false
+        )
+        window.isReleasedWhenClosed = false
+        window.contentView = hostingView
+        window.orderOut(nil)
+        defer {
+            window.contentView = nil
+            window.close()
+        }
+        await InMemoryHostingRenderer.settleUI(hostingView)
+        let bitmap = try XCTUnwrap(NSBitmapImageRep(
+            data: InMemoryHostingRenderer.bitmapData(for: hostingView)
+        ))
+        let pixelsPerPoint = Double(bitmap.pixelsHigh) / 22
+
+        // Sample an interior column where the final low samples are flat.
+        // The chart occupies y=3.5...18.5 in the original 22-point strip.
+        let x = Int(45 * pixelsPerPoint)
+        var weightedY = 0.0
+        var weight = 0.0
+        for y in Int(3 * pixelsPerPoint)..<Int(19 * pixelsPerPoint) {
+            let color = try XCTUnwrap(bitmap.colorAt(x: x, y: y)?.usingColorSpace(.sRGB))
+            let luminance = (color.redComponent + color.greenComponent + color.blueComponent) / 3
+            if luminance < 0.25 {
+                let darkness = 1 - luminance
+                weightedY += (Double(y) + 0.5) * darkness
+                weight += darkness
+            }
+        }
+        if weight == 0 {
+            // A zero-height area can clip its baseline stroke at the Canvas edge.
+            XCTAssertEqual(history.last, 0, "A nonzero CPU value must produce a visible curve")
+            return 0
+        }
+        return (18.5 - weightedY / max(weight, 1) / pixelsPerPoint) / 15
+    }
 }
 
 private actor SequencedMetricsProvider: SystemMetricsProviding {

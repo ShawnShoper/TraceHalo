@@ -5,6 +5,58 @@ import XCTest
 @testable import TraceHaloApp
 
 final class InputDevicesRenderingTests: XCTestCase {
+    func testReceiverQueryIsLimitedToExternalUSBKeyboardWithKnownLocation() {
+        var receiver = InputDeviceState(
+            stableIdentifier: "fixture",
+            name: "2.4G Wireless Receiver",
+            kinds: [.keyboard, .mouse],
+            transport: "USB",
+            vendorID: 0x3554,
+            productID: 0xFA09,
+            locationID: 17
+        )
+        XCTAssertEqual(InputDeviceBatteryPresentation.receiverLocation(for: receiver), 17)
+        receiver.kinds = [.mouse]
+        XCTAssertNil(InputDeviceBatteryPresentation.receiverLocation(for: receiver))
+        receiver.kinds = [.keyboard]
+        receiver.transport = "Bluetooth"
+        XCTAssertNil(InputDeviceBatteryPresentation.receiverLocation(for: receiver))
+        receiver.transport = "USB"
+        receiver.productID = 0x019F
+        XCTAssertNil(InputDeviceBatteryPresentation.receiverLocation(for: receiver))
+        receiver.productID = 0xFA09
+        receiver.locationID = nil
+        XCTAssertNil(InputDeviceBatteryPresentation.receiverLocation(for: receiver))
+        receiver.locationID = 17
+        receiver.isBuiltIn = true
+        XCTAssertNil(InputDeviceBatteryPresentation.receiverLocation(for: receiver))
+    }
+
+    func testReceiverWithoutBatteryReportShowsOnlyModelAndMissingReportMessage() {
+        XCTAssertEqual(InputDeviceBatteryPresentation.receiverRows(for: .noBatteryReport), [
+            .detail(label: "连接的键盘", value: "RK R87PRO"),
+            .detail(label: "电量与充电状态", value: "接收器未上报")
+        ])
+    }
+
+    func testReceiverWithUnknownChargingStateShowsItsLevelAndUnknownChargingLabel() {
+        let rows = InputDeviceBatteryPresentation.receiverRows(for: .reading(level: 65, charging: .unknown))
+        XCTAssertEqual(rows, [
+            .detail(label: "连接的键盘", value: "RK R87PRO"),
+            .battery(level: 65, charging: .unknown)
+        ])
+        XCTAssertEqual(
+            HardwareStorageLocalization.chargingTitle(.unknown, locale: Locale(identifier: "zh-Hans")),
+            "系统未明确报告"
+        )
+    }
+
+    func testReceiverWithoutPermissionShowsOnlyAccessStatus() {
+        XCTAssertEqual(InputDeviceBatteryPresentation.receiverRows(for: .permissionRequired), [
+            .detail(label: "电量与充电状态", value: "系统未允许读取接收器")
+        ])
+    }
+
     func testBatteryAreaOnlyAppearsForValidReportedLevel() {
         let hiddenStates = [
             InputDeviceBatteryState(availability: .unavailable(reason: "不可用")),
@@ -37,9 +89,9 @@ final class InputDevicesRenderingTests: XCTestCase {
     }
 
     func testChargingStateOnlyAppearsWhenSystemReportsItExplicitly() {
-        XCTAssertTrue(InputDeviceBatteryPresentation.showsChargingState(.charging))
-        XCTAssertTrue(InputDeviceBatteryPresentation.showsChargingState(.notCharging))
-        XCTAssertFalse(InputDeviceBatteryPresentation.showsChargingState(.unknown))
+        XCTAssertEqual(InputDeviceBatteryPresentation.visibleChargingState(.charging), .charging)
+        XCTAssertEqual(InputDeviceBatteryPresentation.visibleChargingState(.notCharging), .notCharging)
+        XCTAssertNil(InputDeviceBatteryPresentation.visibleChargingState(.unknown))
     }
 
     func testFixtureIncludesHiddenAndVisibleBatteryExamples() throws {

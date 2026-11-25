@@ -652,7 +652,7 @@ struct MenuBarStatusStrip: View {
                 StatusBarVerticalLabel(text: displayTitle)
                 StatusBarAreaChart(
                     values: chartValues(for: component.metric),
-                    ceiling: miniChartCeiling(for: component.metric),
+                    ceiling: chartCeiling(for: component.metric),
                     maximumBarCount: 28
                 )
                 .frame(width: 36, height: 15)
@@ -768,20 +768,6 @@ struct MenuBarStatusStrip: View {
         }
     }
 
-    private func miniChartCeiling(for metric: MonitorMetric) -> Double? {
-        switch metric {
-        case .cpuTotal, .cpuUser, .cpuSystem, .gpuUsage, .memoryPressure, .memoryUsed, .storageUsed,
-             .batteryCharge:
-            let recentMaximum = model.history(for: metric).max() ?? 0
-            let currentValue = currentNumericValue(for: metric) ?? 0
-            return min(max(max(recentMaximum, currentValue) * 1.2, 25), 100)
-        case .temperature:
-            return 100
-        case .fanSpeed, .networkReceived, .networkSent, .batteryHealth, .uptime:
-            return nil
-        }
-    }
-
     private var rootVolume: StorageVolume? {
         preferredStorageVolume(in: model.snapshot.volumes)
     }
@@ -846,7 +832,7 @@ private struct StatusBarAreaChart: View {
             let points = samples.enumerated().map { index, value in
                 CGPoint(
                     x: CGFloat(index) / CGFloat(samples.count - 1) * size.width,
-                    y: size.height - (size.height * min(max(value / upperBound, 0.04), 1))
+                    y: size.height - (size.height * min(max(value / upperBound, 0), 1))
                 )
             }
 

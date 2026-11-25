@@ -394,6 +394,94 @@ final class InputDeviceReaderTests: XCTestCase {
         )
     }
 
+    func testBluetoothMagicTrackpadChargingFlagsRequireTheVerifiedIdentity() {
+        for transport in ["Bluetooth", " bluetooth ", "BLUETOOTH"] {
+            XCTAssertEqual(
+                AppleDriverBatteryRegistryReader.chargingState(from: [
+                    "Transport": transport,
+                    "VendorID": 76,
+                    "ProductID": 613,
+                    "BatteryStatusFlags": 3
+                ]),
+                .charging,
+                "已验证的 Magic Trackpad 蓝牙充电标志应兼容连接方式大小写和首尾空格"
+            )
+        }
+    }
+
+    func testBluetoothChargingFlagsRemainUnknownForUnverifiedOrMissingIdentity() {
+        let identities: [[String: Any]] = [
+            ["VendorID": 76, "ProductID": 0x0274],
+            ["VendorID": 77, "ProductID": 613],
+            ["VendorID": 0, "ProductID": 613],
+            ["VendorID": 76, "ProductID": 0],
+            ["VendorID": 76],
+            ["ProductID": 613],
+            [:]
+        ]
+        for identity in identities {
+            var properties = identity
+            properties["Transport"] = "Bluetooth"
+            properties["BatteryStatusFlags"] = 3
+
+            XCTAssertEqual(
+                AppleDriverBatteryRegistryReader.chargingState(from: properties),
+                .unknown,
+                "不能把单个已验证型号的私有标志推广到其他设备或缺少身份的记录"
+            )
+        }
+    }
+
+    func testExplicitNotChargingOverridesVerifiedBluetoothTrackpadFlags() {
+        for key in ["IsCharging", "Is Charging"] {
+            XCTAssertEqual(
+                AppleDriverBatteryRegistryReader.chargingState(from: [
+                    "Transport": "Bluetooth",
+                    "VendorID": 76,
+                    "ProductID": 613,
+                    "BatteryStatusFlags": 3,
+                    key: false
+                ]),
+                .notCharging,
+                "驱动明确上报的充电布尔值应优先于兼容标志解析"
+            )
+        }
+    }
+
+    func testVerifiedBluetoothTrackpadChargingSurvivesDriverRecordInventoryMatching() throws {
+        let trackpad = try makeRecord(
+            registryID: 42,
+            name: "Magic Trackpad",
+            transport: "Bluetooth",
+            vendorID: 76,
+            productID: 613,
+            locationID: 1_810_643_337,
+            page: 0x0D,
+            usage: 0x05
+        )
+        let driverRecord = try XCTUnwrap(AppleDriverBatteryRegistryReader.record(from: [
+            "Transport": " bluetooth ",
+            "VendorID": 76,
+            "ProductID": 613,
+            "LocationID": 1_810_643_337,
+            "BatteryPercent": 54,
+            "BatteryStatusFlags": 3
+        ]))
+
+        let inventory = InputDeviceCatalog.inventory(
+            from: [trackpad],
+            appleDriverBatteries: [driverRecord]
+        )
+        XCTAssertEqual(inventory.devices.count, 1)
+        let device = try XCTUnwrap(inventory.devices.first)
+        XCTAssertEqual(device.name, "Magic Trackpad")
+        XCTAssertEqual(device.transport, "Bluetooth")
+        XCTAssertTrue(device.battery.availability.isAvailable)
+        XCTAssertEqual(device.battery.levelPercent, 54)
+        XCTAssertEqual(device.battery.source, .appleDriverRegistry)
+        XCTAssertEqual(device.battery.chargingState, .charging)
+    }
+
     func testAppleDriverFallbackRejectsMismatchedIncompleteAndConflictingIdentity() throws {
         let exactHIDRecord = try makeRecord(
             registryID: 1,

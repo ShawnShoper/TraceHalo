@@ -125,12 +125,18 @@ if [[ ! -d "${CORE_RESOURCE_BUNDLE_PATH}" ]]; then
 fi
 ditto "${CORE_RESOURCE_BUNDLE_PATH}" \
     "${STAGED_APP_PATH}/Contents/Resources/TraceHalo_TraceHaloCore.bundle"
+# Swift Build emits macOS resource bundles with Contents/Resources; older
+# SwiftPM native builds place localizations directly in the bundle root.
+APP_LOCALIZATION_ROOT="${APP_RESOURCE_BUNDLE_PATH}"
+if [[ -d "${APP_RESOURCE_BUNDLE_PATH}/Contents/Resources" ]]; then
+    APP_LOCALIZATION_ROOT="${APP_RESOURCE_BUNDLE_PATH}/Contents/Resources"
+fi
 for localization in en zh-Hans; do
     resource_localization="${localization}"
     if [[ "${localization}" == "zh-Hans" ]]; then
         resource_localization="zh-hans"
     fi
-    localization_source="${APP_RESOURCE_BUNDLE_PATH}/${resource_localization}.lproj"
+    localization_source="${APP_LOCALIZATION_ROOT}/${resource_localization}.lproj"
     if [[ ! -d "${localization_source}" ]]; then
         print -u2 "Missing required localization resources: ${localization_source}"
         exit 1

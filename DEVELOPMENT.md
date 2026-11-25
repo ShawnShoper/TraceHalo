@@ -21,7 +21,7 @@ open TraceHalo.xcodeproj
 
 Select the **TraceHalo** scheme. In the TraceHalo target you can manage:
 
-- **General**: app version (`0.2.0`), build number (`26`), deployment target, and app category.
+- **General**: app version (`0.2.2`), build number (`46`), deployment target, and app category.
 - **Signing & Capabilities**: development team, automatic signing, hardened runtime, and future capabilities.
 - **Build Settings**: bundle identifier (`com.tseai.tracehalo`) and advanced compiler settings.
 
@@ -74,7 +74,7 @@ v0.1.0  next feature milestone
 v1.0.0  first major release
 ```
 
-The source for `v0.2.0` uses Apple bundle version `0.2.0`, build `26`, and release channel `Beta`. `scripts/public-version.sh` formats versions for release files and tags. The public installer depends on passing the distribution checks below. [Upgrade notes in Simplified Chinese](docs/releases/v0.2.0.md)
+The source for `v0.2.2` uses Apple bundle version `0.2.2`, build `46`, and release channel `Beta`. `scripts/public-version.sh` formats versions for release files and tags. The public installer depends on passing the distribution checks below. [Upgrade notes in Simplified Chinese](docs/releases/v0.2.2.md)
 
 ### Release packaging
 
@@ -134,7 +134,7 @@ open TraceHalo.xcodeproj
 
 选择 **TraceHalo** Scheme。进入 TraceHalo Target 后可以直接管理：
 
-- **General**：应用版本（`0.2.0`）、构建号（`26`）、最低系统版本和应用分类。
+- **General**：应用版本（`0.2.2`）、构建号（`46`）、最低系统版本和应用分类。
 - **Signing & Capabilities**：开发团队、自动签名、Hardened Runtime，以及以后新增的能力。
 - **Build Settings**：Bundle ID（`com.tseai.tracehalo`）和高级编译配置。
 
@@ -187,7 +187,7 @@ v0.1.0  下一个功能里程碑
 v1.0.0  首个正式大版本
 ```
 
-`v0.2.0` 源码的 Apple 应用版本为 `0.2.0`，构建号为 `26`，发行渠道为 `Beta`。`scripts/public-version.sh` 为安装包和 Git Tag 格式化公开版本号。公开安装包需通过下文的发行验证。[升级说明](docs/releases/v0.2.0.md)
+`v0.2.2` 源码的 Apple 应用版本为 `0.2.2`，构建号为 `46`，发行渠道为 `Beta`。`scripts/public-version.sh` 为安装包和 Git Tag 格式化公开版本号。公开安装包需通过下文的发行验证。[升级说明](docs/releases/v0.2.2.md)
 
 ### 发行包构建
 

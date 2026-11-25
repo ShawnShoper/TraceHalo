@@ -10,7 +10,7 @@ final class LiveSamplingScheduleTests: XCTestCase {
         XCTAssertEqual(LiveSamplingDomain.gpuPerformance.interval, 3)
         XCTAssertEqual(LiveSamplingDomain.volumes.interval, 30)
         XCTAssertEqual(LiveSamplingDomain.battery.interval, 30)
-        XCTAssertEqual(LiveSamplingDomain.inputDevices.interval, 30)
+        XCTAssertEqual(LiveSamplingDomain.inputDevices.interval, 3)
         XCTAssertEqual(LiveSamplingDomain.gpuInventory.interval, 30)
         XCTAssertEqual(LiveSamplingDomain.displayInventory.interval, 30)
         XCTAssertEqual(LiveSamplingDomain.networkDisplayNames.interval, 60)
@@ -58,6 +58,17 @@ final class LiveSamplingScheduleTests: XCTestCase {
             for: .gpuInventory,
             at: start.addingTimeInterval(30)
         ))
+    }
+
+    func testInputChargingRefreshDoesNotWaitForSlowInventoryRefresh() {
+        let start = Date(timeIntervalSinceReferenceDate: 25_000)
+        var schedule = LiveSamplingSchedule()
+        XCTAssertTrue(schedule.consumeRefresh(for: .inputDevices, at: start))
+        XCTAssertTrue(schedule.consumeRefresh(for: .volumes, at: start))
+
+        XCTAssertFalse(schedule.consumeRefresh(for: .inputDevices, at: start.addingTimeInterval(2.999)))
+        XCTAssertTrue(schedule.consumeRefresh(for: .inputDevices, at: start.addingTimeInterval(3)))
+        XCTAssertFalse(schedule.consumeRefresh(for: .volumes, at: start.addingTimeInterval(3)))
     }
 
     func testAllDomainsAreDueOnTheirFirstUse() {

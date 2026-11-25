@@ -10,7 +10,7 @@
 
 <p align="center">
   <img alt="Beta" src="https://img.shields.io/badge/status-Beta-f0a43c">
-  <img alt="Source version" src="https://img.shields.io/badge/source-v0.2.1-4f8cff">
+  <img alt="Source version" src="https://img.shields.io/badge/source-v0.2.2-4f8cff">
   <img alt="macOS 14+" src="https://img.shields.io/badge/macOS-14%2B-202733">
   <img alt="License" src="https://img.shields.io/badge/license-Apache--2.0-56b37f">
 </p>
@@ -19,9 +19,9 @@
   <strong>English</strong> · <a href="README.zh-Hans.md">简体中文</a>
 </p>
 
-## v0.2.1 Beta
+## v0.2.2 Beta
 
-**v0.2.1 Beta (build 39)** improves application management, local-data review and first-run uninstall access setup, and fixes main-window startup and recovery. The locally installed candidate is ready for review; the public installer and Apple notarization are pending. [Upgrade notes in Simplified Chinese](docs/releases/v0.2.1.md)
+**v0.2.2 Beta (build 46)** fixes reopening the main window from the Dock and menu bar, corrects percentage-chart scaling, and improves input-device charging status. R87PRO receiver diagnostics now distinguish missing reports from real battery readings. [Upgrade notes in Simplified Chinese](docs/releases/v0.2.2.md)
 
 ## Your Mac, at a glance
 

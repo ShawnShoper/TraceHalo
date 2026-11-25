@@ -324,6 +324,37 @@ struct GraphicsView: View {
 }
 
 enum InputDeviceBatteryPresentation {
+    enum ReceiverRow: Equatable {
+        case detail(label: String, value: String)
+        case battery(level: Int, charging: InputDeviceChargingState)
+    }
+
+    static func receiverRows(for result: RKReceiverBatteryResult) -> [ReceiverRow] {
+        let model = ReceiverRow.detail(label: "连接的键盘", value: "RK R87PRO")
+        switch result {
+        case let .reading(level, charging):
+            return [model, .battery(level: level, charging: charging)]
+        case .noBatteryReport:
+            return [model, .detail(label: "电量与充电状态", value: "接收器未上报")]
+        case .permissionRequired:
+            return [.detail(label: "电量与充电状态", value: "系统未允许读取接收器")]
+        case .offline:
+            return [.detail(label: "连接的键盘", value: "未连接")]
+        case .unavailable:
+            return [.detail(label: "电量与充电状态", value: "暂时无法读取")]
+        case .otherKeyboard:
+            return []
+        }
+    }
+
+    static func receiverLocation(for device: InputDeviceState) -> UInt64? {
+        guard device.kinds.contains(.keyboard), device.isBuiltIn != true,
+              device.transport?.caseInsensitiveCompare("USB") == .orderedSame,
+              device.vendorID == 0x3554, device.productID == 0xFA09,
+              let locationID = device.locationID, locationID != 0 else { return nil }
+        return locationID
+    }
+
     static func visibleLevel(for battery: InputDeviceBatteryState) -> Double? {
         guard battery.availability.isAvailable,
               let level = battery.levelPercent,
@@ -334,8 +365,8 @@ enum InputDeviceBatteryPresentation {
         return level
     }
 
-    static func showsChargingState(_ state: InputDeviceChargingState) -> Bool {
-        state != .unknown
+    static func visibleChargingState(_ state: InputDeviceChargingState) -> InputDeviceChargingState? {
+        state == .unknown ? nil : state
     }
 }
 
@@ -356,14 +387,22 @@ struct InputDevicesView: View {
                     if model.snapshot.inputDevices.devices.isEmpty {
                         EmptyCapabilityView(
                             title: localized("没有发现输入设备"),
-                            message: localized("IORegistry 暂未返回可识别的物理键盘、鼠标或触控板；设备变化会在约 30 秒内重新读取。"),
+                            message: localized("IORegistry 暂未返回可识别的物理键盘、鼠标或触控板；设备变化会自动重新读取。"),
                             symbol: "keyboard.badge.ellipsis"
                         )
                     } else {
                         inventoryOverview
                         InputDeviceCardGridLayout {
                             ForEach(model.snapshot.inputDevices.devices) { device in
-                                deviceCard(device)
+                                if model.dataSource == .live, RuntimeSafetyMode.current == .live,
+                                   let location = InputDeviceBatteryPresentation.receiverLocation(for: device) {
+                                    RKReceiverCard(locationID: location) { result in
+                                        deviceCard(device, receiver: result)
+                                    }
+                                    .id(location)
+                                } else {
+                                    deviceCard(device)
+                                }
                             }
                         }
                         privacyNote
@@ -443,8 +482,9 @@ struct InputDevicesView: View {
         .accessibilityElement(children: .combine)
     }
 
-    private func deviceCard(_ device: InputDeviceState) -> some View {
-        VStack(alignment: .leading, spacing: 14) {
+    private func deviceCard(_ device: InputDeviceState, receiver: RKReceiverBatteryResult? = nil) -> some View {
+        let receiverRows = receiver.map(InputDeviceBatteryPresentation.receiverRows(for:)) ?? []
+        return VStack(alignment: .leading, spacing: 14) {
             HStack(alignment: .top, spacing: 13) {
                 Image(systemName: kindSymbol(device.primaryKind))
                     .font(.system(size: 23, weight: .medium))
@@ -493,9 +533,22 @@ struct InputDevicesView: View {
                     ?? localized("系统未提供")
             )
             Spacer(minLength: 0)
-            if let level = InputDeviceBatteryPresentation.visibleLevel(for: device.battery) {
+            if !receiverRows.isEmpty {
                 CalmDivider()
-                batteryRow(device.battery, level: level)
+                ForEach(receiverRows.indices, id: \.self) { index in
+                    switch receiverRows[index] {
+                    case let .detail(label, value):
+                        DetailRow(label: localized(label), value: localized(value))
+                    case let .battery(level, charging):
+                        batteryRow(charging: charging, level: Double(level))
+                    }
+                }
+            } else if let level = InputDeviceBatteryPresentation.visibleLevel(for: device.battery) {
+                CalmDivider()
+                batteryRow(
+                    charging: InputDeviceBatteryPresentation.visibleChargingState(device.battery.chargingState),
+                    level: level
+                )
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
@@ -504,10 +557,7 @@ struct InputDevicesView: View {
         .accessibilityElement(children: .contain)
     }
 
-    private func batteryRow(
-        _ battery: InputDeviceBatteryState,
-        level: Double
-    ) -> some View {
+    private func batteryRow(charging: InputDeviceChargingState?, level: Double) -> some View {
         VStack(alignment: .leading, spacing: 9) {
             HStack {
                 Label(localized("设备电量"), systemImage: "battery.75percent")
@@ -520,30 +570,25 @@ struct InputDevicesView: View {
             ProgressView(value: level / 100)
                 .tint(batteryColor(level))
 
-            if InputDeviceBatteryPresentation.showsChargingState(battery.chargingState) {
+            if let charging {
                 HStack(spacing: 9) {
-                    Label(localized("充电状态"), systemImage: chargingSymbol(battery.chargingState))
+                    Label(localized("充电状态"), systemImage: chargingSymbol(charging))
                         .foregroundStyle(CalmTheme.secondaryText)
                     Spacer()
-                    Text(chargingTitle(battery.chargingState))
+                    Text(chargingTitle(charging))
                         .fontWeight(.semibold)
-                        .foregroundStyle(chargingColor(battery.chargingState))
+                        .foregroundStyle(chargingColor(charging))
                 }
                 .font(.callout)
             }
 
-            if battery.source == .appleDriverRegistry {
-                Text(localized("Apple 驱动 IORegistry 报告（兼容读取）"))
-                    .font(.caption2.weight(.medium))
-                    .foregroundStyle(CalmTheme.secondaryText)
-            }
         }
         .frame(minHeight: 92, alignment: .topLeading)
     }
 
     private var privacyNote: some View {
         Label {
-            Text(localized("TraceHalo 只枚举 IORegistry 元数据，不打开 HID 设备、不读取输入值，也不需要“输入监控”权限。电量和充电状态仅显示 Apple 驱动明确报告的值。"))
+            Text(localized("TraceHalo 仅读取设备信息和电池状态，不收集按键内容。"))
         } icon: {
             Image(systemName: "lock.shield")
                 .foregroundStyle(CalmTheme.mint)
@@ -617,6 +662,42 @@ struct InputDevicesView: View {
         case .permissionRequired: localized("需要权限")
         case .failed: localized("读取失败")
         }
+    }
+}
+
+/// The USB identifiers identify a shared receiver. Only its model reply identifies the keyboard.
+private struct RKReceiverCard<Content: View>: View {
+    let locationID: UInt64
+    @ViewBuilder let content: (RKReceiverBatteryResult?) -> Content
+    @State private var result: RKReceiverBatteryResult?
+    @Environment(\.scenePhase) private var scenePhase
+
+    var body: some View {
+        content(result)
+            .task(id: scenePhase == .background) {
+                guard scenePhase != .background else { return }
+                result = nil
+                while !Task.isCancelled {
+                    let reading = await RKReceiverQueries.shared.read(locationID: locationID)
+                    guard !Task.isCancelled else { return }
+                    result = reading
+                    let delay: Duration = switch reading {
+                    case .reading, .offline: .seconds(30)
+                    case .unavailable, .noBatteryReport, .permissionRequired, .otherKeyboard: .seconds(180)
+                    }
+                    do { try await Task.sleep(for: delay) } catch { return }
+                }
+            }
+    }
+}
+
+// Serialize device access across windows, including when a card disappears mid-read.
+private actor RKReceiverQueries {
+    static let shared = RKReceiverQueries()
+
+    func read(locationID: UInt64) -> RKReceiverBatteryResult {
+        guard !Task.isCancelled else { return .unavailable }
+        return RKReceiverBatteryReader.read(locationID: locationID)
     }
 }
 
